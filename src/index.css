@@ -1,0 +1,39 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
+
+:root {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  color: #17201b;
+  background: #f8faf8;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --green-950: #102d23;
+  --green-900: #15392c;
+  --green-800: #1b4c39;
+  --green-700: #226247;
+  --green-600: #2b7d58;
+  --green-500: #39a56f;
+  --green-300: #8bd7b0;
+  --green-100: #dff4e8;
+  --green-50: #f0faf4;
+  --cream: #f7f5ed;
+  --orange: #e87940;
+  --ink: #17201b;
+  --muted: #66736b;
+  --border: #e3e9e5;
+  --white: #fff;
+  --shadow: 0 24px 60px rgba(22, 57, 44, .1);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, input, select, textarea { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button { cursor: pointer; }
+a { color: inherit; }
+img { max-width: 100%; }
+h1, h2, h3, p { margin-top: 0; }
+h1, h2, h3, .brand { font-family: 'Manrope', sans-serif; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgba(57,165,111,.23); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
