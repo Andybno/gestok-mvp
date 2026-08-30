@@ -163,8 +163,8 @@ export function LeadFormPage() {
 
   return (
     <div className="form-page conversational-form-page">
-      <header className="form-header container"><Brand /><Link to="/"><ArrowLeft size={16} /> Voltar ao site</Link></header>
-      <div className="form-progress"><span style={{ width: `${progress}%` }} /></div>
+      <header className="form-header container"><Brand /><Link to="/"><ArrowLeft size={16} /><span>Voltar ao site</span></Link></header>
+      <div className="form-progress" role="progressbar" aria-label="Progresso do diagnóstico" aria-valuemin={1} aria-valuemax={questions.length} aria-valuenow={index + 1}><span style={{ width: `${progress}%` }} /></div>
       <main className="conversation-layout container">
         <aside className="conversation-aside">
           <span className="conversation-count">{String(index + 1).padStart(2, '0')}<small>/ {questions.length}</small></span>
@@ -179,10 +179,10 @@ export function LeadFormPage() {
           <p className="question-subtitle">{question.subtitle}</p>
 
           {question.type === 'choice' && <div className={`single-choice-list ${question.options!.length <= 4 ? 'compact' : ''}`}>
-            {question.options!.map((option) => <button type="button" key={option.value} className={selectedValue === option.value ? 'selected' : ''} onClick={() => choose(option.value)} disabled={transitioning}><span className="choice-radio">{selectedValue === option.value && <Check size={14} />}</span><span><strong>{option.label}</strong>{option.detail && <small>{option.detail}</small>}</span><ArrowRight className="choice-arrow" size={17} /></button>)}
+            {question.options!.map((option) => <button type="button" key={option.value} className={selectedValue === option.value ? 'selected' : ''} aria-pressed={selectedValue === option.value} onClick={() => choose(option.value)} disabled={transitioning}><span className="choice-radio">{selectedValue === option.value && <Check size={14} />}</span><span><strong>{option.label}</strong>{option.detail && <small>{option.detail}</small>}</span><ArrowRight className="choice-arrow" size={17} /></button>)}
           </div>}
 
-          {['text','email','tel'].includes(question.type) && <div className="single-answer-field"><input autoFocus type={question.type} value={String(data[question.id])} onChange={(event) => update(question.id, event.target.value)} placeholder={question.placeholder} autoComplete={question.id === 'full_name' ? 'name' : question.id === 'business_name' ? 'organization' : question.id === 'email' ? 'email' : question.id === 'whatsapp' ? 'tel' : 'off'} /><small>Pressione Enter ou use o botão para continuar</small></div>}
+          {['text','email','tel'].includes(question.type) && <div className="single-answer-field"><input autoFocus type={question.type} value={String(data[question.id])} onChange={(event) => update(question.id, event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); if (isValid()) advance(); else setError('Preencha esta resposta para continuar.') } }} enterKeyHint="next" placeholder={question.placeholder} autoComplete={question.id === 'full_name' ? 'name' : question.id === 'business_name' ? 'organization' : question.id === 'email' ? 'email' : question.id === 'whatsapp' ? 'tel' : 'off'} /><small>Pressione Enter ou use o botão para continuar</small></div>}
 
           {question.type === 'textarea' && <div className="single-answer-field"><textarea autoFocus rows={5} maxLength={500} value={data.main_challenge} onChange={(event) => update('main_challenge', event.target.value)} placeholder={question.placeholder} /><small>{data.main_challenge.length}/500 caracteres</small></div>}
 
