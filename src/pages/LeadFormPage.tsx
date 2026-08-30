@@ -1,125 +1,205 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronLeft, LockKeyhole, Store } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, Clock3, LockKeyhole, ShieldCheck, Sparkles } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Brand } from '../components/Brand'
 import { saveLead } from '../lib/api'
 import type { LeadFormData } from '../types'
 
-const initialData: LeadFormData = {
-  full_name: '', email: '', whatsapp: '', business_name: '', city: '', state: '', role: '', operation_type: '',
-  sales_channels: [], units_count: '', employees_count: '', monthly_orders: '', sku_count: '', inventory_method: '',
-  inventory_frequency: '', uses_erp: '', estimated_loss: '', main_challenge: '', contact_consent: false,
-  marketing_consent: false, privacy_policy_version: '2026-08-30',
+type QuestionId = keyof LeadFormData
+type Option = { value: string; label: string; detail?: string }
+type Question = {
+  id: QuestionId
+  eyebrow: string
+  title: string
+  subtitle: string
+  type: 'choice' | 'text' | 'email' | 'tel' | 'textarea' | 'state' | 'consent'
+  placeholder?: string
+  options?: Option[]
 }
 
-const steps = [
-  { title: 'Sobre você', subtitle: 'Primeiro, queremos conhecer quem está à frente da operação.' },
-  { title: 'Sua operação', subtitle: 'Esses dados ajudam a adaptar a ferramenta ao seu dia a dia.' },
-  { title: 'Rotina de estoque', subtitle: 'Conte como vocês controlam insumos hoje.' },
-  { title: 'Consentimento', subtitle: 'Transparência sobre como vamos usar seus dados.' },
+const questions: Question[] = [
+  { id: 'operation_type', eyebrow: 'Sobre o negócio', title: 'Qual opção descreve melhor sua operação?', subtitle: 'Escolha a alternativa mais próxima da sua realidade.', type: 'choice', options: [
+    { value: 'Restaurante', label: 'Restaurante', detail: 'Atendimento com salão e cozinha' },
+    { value: 'Delivery / dark kitchen', label: 'Delivery ou dark kitchen', detail: 'Produção focada em entregas' },
+    { value: 'Cafeteria', label: 'Cafeteria', detail: 'Cafés, bebidas e refeições rápidas' },
+    { value: 'Padaria / confeitaria', label: 'Padaria ou confeitaria', detail: 'Produção própria e balcão' },
+    { value: 'Bar', label: 'Bar', detail: 'Bebidas, porções e cozinha' },
+    { value: 'Marmitaria', label: 'Marmitaria', detail: 'Refeições prontas e recorrentes' },
+    { value: 'Outro', label: 'Outro tipo', detail: 'Uma operação diferente das opções' },
+  ] },
+  { id: 'sales_channels', eyebrow: 'Canais de venda', title: 'Como seus clientes compram hoje?', subtitle: 'Considere o canal que melhor representa sua rotina atual.', type: 'choice', options: [
+    { value: 'presencial', label: 'Somente presencial', detail: 'Salão, balcão ou retirada no local' },
+    { value: 'ifood', label: 'Somente iFood ou marketplace', detail: 'Pedidos concentrados em aplicativos' },
+    { value: 'presencial_ifood', label: 'Presencial + iFood', detail: 'Os dois canais fazem parte da operação' },
+    { value: 'delivery_proprio', label: 'Delivery próprio', detail: 'WhatsApp, site ou entregadores próprios' },
+    { value: 'varios', label: 'Vários canais', detail: 'Presencial, marketplace e delivery próprio' },
+  ] },
+  { id: 'role', eyebrow: 'Seu papel', title: 'Qual é a sua função na operação?', subtitle: 'Isso nos ajuda a adaptar a experiência ao que você precisa acompanhar.', type: 'choice', options: [
+    { value: 'Proprietário(a) / sócio(a)', label: 'Proprietário(a) ou sócio(a)' },
+    { value: 'Gerente', label: 'Gerente' },
+    { value: 'Chef / responsável pela cozinha', label: 'Chef ou responsável pela cozinha' },
+    { value: 'Responsável pelo estoque/compras', label: 'Responsável pelo estoque ou compras' },
+    { value: 'Outro', label: 'Outra função' },
+  ] },
+  { id: 'units_count', eyebrow: 'Tamanho da operação', title: 'Quantas unidades o negócio possui?', subtitle: 'Conte lojas, cozinhas ou pontos de produção ativos.', type: 'choice', options: [
+    { value: '1 unidade', label: '1 unidade' }, { value: '2 a 3 unidades', label: '2 a 3 unidades' }, { value: '4 a 10 unidades', label: '4 a 10 unidades' }, { value: 'Mais de 10', label: 'Mais de 10 unidades' },
+  ] },
+  { id: 'employees_count', eyebrow: 'Tamanho da equipe', title: 'Quantas pessoas trabalham na operação?', subtitle: 'Considere cozinha, atendimento, gestão e entregas próprias.', type: 'choice', options: [
+    { value: '1 a 5 pessoas', label: '1 a 5 pessoas' }, { value: '6 a 15 pessoas', label: '6 a 15 pessoas' }, { value: '16 a 40 pessoas', label: '16 a 40 pessoas' }, { value: 'Mais de 40', label: 'Mais de 40 pessoas' },
+  ] },
+  { id: 'monthly_orders', eyebrow: 'Volume de vendas', title: 'Quantos pedidos vocês atendem por mês?', subtitle: 'Uma estimativa já é suficiente.', type: 'choice', options: [
+    { value: 'Até 500', label: 'Até 500 pedidos' }, { value: '501 a 2.000', label: '501 a 2.000 pedidos' }, { value: '2.001 a 5.000', label: '2.001 a 5.000 pedidos' }, { value: '5.001 a 15.000', label: '5.001 a 15.000 pedidos' }, { value: 'Mais de 15.000', label: 'Mais de 15.000 pedidos' },
+  ] },
+  { id: 'sku_count', eyebrow: 'Complexidade do estoque', title: 'Quantos itens diferentes existem no estoque?', subtitle: 'Pense em ingredientes, bebidas, embalagens e materiais de consumo.', type: 'choice', options: [
+    { value: 'Até 30', label: 'Até 30 itens' }, { value: '31 a 100', label: '31 a 100 itens' }, { value: '101 a 300', label: '101 a 300 itens' }, { value: 'Mais de 300', label: 'Mais de 300 itens' },
+  ] },
+  { id: 'inventory_method', eyebrow: 'Rotina atual', title: 'Como vocês controlam o estoque hoje?', subtitle: 'Escolha o método usado na maior parte do tempo.', type: 'choice', options: [
+    { value: 'Papel / caderno', label: 'Papel ou caderno' }, { value: 'Planilha', label: 'Planilha' }, { value: 'Sistema de PDV', label: 'Sistema de PDV' }, { value: 'Software de estoque / ERP', label: 'Software de estoque ou ERP' }, { value: 'Não controlamos formalmente', label: 'Ainda não controlamos formalmente' },
+  ] },
+  { id: 'inventory_frequency', eyebrow: 'Frequência', title: 'Com que frequência vocês contam o estoque?', subtitle: 'Considere a contagem física dos itens.', type: 'choice', options: [
+    { value: 'Diariamente', label: 'Todos os dias' }, { value: 'Semanalmente', label: 'Toda semana' }, { value: 'Quinzenalmente', label: 'A cada 15 dias' }, { value: 'Mensalmente', label: 'Uma vez por mês' }, { value: 'Não fazemos', label: 'Não fazemos inventário' },
+  ] },
+  { id: 'uses_erp', eyebrow: 'Sistemas', title: 'Vocês usam algum ERP ou PDV?', subtitle: 'Queremos entender como a Gestok pode conviver com as ferramentas atuais.', type: 'choice', options: [
+    { value: 'Não', label: 'Não usamos' }, { value: 'Sim, mas sem estoque', label: 'Sim, mas sem controle de estoque' }, { value: 'Sim, integrado ao estoque', label: 'Sim, integrado ao estoque' },
+  ] },
+  { id: 'estimated_loss', eyebrow: 'Perdas', title: 'Quanto do estoque vocês estimam perder por mês?', subtitle: 'Pode considerar validade, desperdício, erros e diferenças de contagem.', type: 'choice', options: [
+    { value: 'Até 2%', label: 'Até 2%' }, { value: 'Entre 3% e 5%', label: 'Entre 3% e 5%' }, { value: 'Entre 6% e 10%', label: 'Entre 6% e 10%' }, { value: 'Acima de 10%', label: 'Acima de 10%' }, { value: 'Não sabemos medir', label: 'Ainda não conseguimos medir' },
+  ] },
+  { id: 'full_name', eyebrow: 'Quase lá', title: 'Como podemos chamar você?', subtitle: 'Use seu nome para personalizar sua conta.', type: 'text', placeholder: 'Digite seu nome completo' },
+  { id: 'business_name', eyebrow: 'Seu estabelecimento', title: 'Qual é o nome do negócio?', subtitle: 'É assim que ele aparecerá dentro da Gestok.', type: 'text', placeholder: 'Ex.: Restaurante Sabor da Casa' },
+  { id: 'email', eyebrow: 'Acesso à conta', title: 'Qual é o seu melhor e-mail?', subtitle: 'Ele será usado para criar sua conta e enviar informações do teste.', type: 'email', placeholder: 'voce@empresa.com' },
+  { id: 'whatsapp', eyebrow: 'Contato', title: 'Qual é o seu WhatsApp?', subtitle: 'Inclua o DDD. Usaremos este número conforme suas escolhas de consentimento.', type: 'tel', placeholder: '(11) 99999-9999' },
+  { id: 'city', eyebrow: 'Localização', title: 'Em qual cidade fica a operação?', subtitle: 'Isso ajuda a entender diferenças regionais de operação.', type: 'text', placeholder: 'Digite a cidade' },
+  { id: 'state', eyebrow: 'Localização', title: 'E em qual estado?', subtitle: 'Selecione a UF da unidade principal.', type: 'state' },
+  { id: 'main_challenge', eyebrow: 'O que mais importa', title: 'Qual é o maior desafio do estoque hoje?', subtitle: 'Conte com suas palavras. Uma frase já ajuda bastante.', type: 'textarea', placeholder: 'Ex.: compras em excesso, falta de ingrediente, validade, contagem demorada...' },
+  { id: 'contact_consent', eyebrow: 'Privacidade', title: 'Como podemos usar seus dados?', subtitle: 'Escolha com transparência antes de criar sua conta.', type: 'consent' },
 ]
 
-const Choice = ({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) => (
-  <button type="button" className={`choice ${selected ? 'selected' : ''}`} onClick={onClick}><span>{selected && <Check size={14} />}</span>{label}</button>
-)
+const channelValues: Record<string, string[]> = {
+  presencial: ['Atendimento presencial'],
+  ifood: ['iFood / marketplaces'],
+  presencial_ifood: ['Atendimento presencial', 'iFood / marketplaces'],
+  delivery_proprio: ['Delivery próprio'],
+  varios: ['Atendimento presencial', 'iFood / marketplaces', 'Delivery próprio'],
+}
+
+const initialData: LeadFormData = {
+  full_name: '', email: '', whatsapp: '', business_name: '', city: '', state: '', role: '', operation_type: '', sales_channels: [],
+  units_count: '', employees_count: '', monthly_orders: '', sku_count: '', inventory_method: '', inventory_frequency: '', uses_erp: '',
+  estimated_loss: '', main_challenge: '', contact_consent: false, marketing_consent: false, privacy_policy_version: '2026-08-30',
+}
+
+const states = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO']
 
 export function LeadFormPage() {
-  const [step, setStep] = useState(0)
+  const [index, setIndex] = useState(0)
   const [data, setData] = useState(initialData)
+  const [transitioning, setTransitioning] = useState(false)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const navigate = useNavigate()
-  const progress = ((step + 1) / steps.length) * 100
+  const question = questions[index]
+  const progress = ((index + 1) / questions.length) * 100
+  const selectionPhase = question.type === 'choice' || question.type === 'state'
 
-  const update = (key: keyof LeadFormData, value: string | boolean | string[]) => setData((current) => ({ ...current, [key]: value }))
-  const toggleChannel = (channel: string) => update('sales_channels', data.sales_channels.includes(channel) ? data.sales_channels.filter((item) => item !== channel) : [...data.sales_channels, channel])
+  const selectedValue = useMemo(() => {
+    if (question.id !== 'sales_channels') return String(data[question.id] ?? '')
+    const entry = Object.entries(channelValues).find(([, values]) => values.length === data.sales_channels.length && values.every((value) => data.sales_channels.includes(value)))
+    return entry?.[0] || ''
+  }, [data, question.id])
 
-  const stepValid = useMemo(() => {
-    if (step === 0) return Boolean(data.full_name && /\S+@\S+\.\S+/.test(data.email) && data.whatsapp && data.business_name && data.role)
-    if (step === 1) return Boolean(data.operation_type && data.sales_channels.length && data.city && data.state && data.units_count && data.employees_count && data.monthly_orders)
-    if (step === 2) return Boolean(data.sku_count && data.inventory_method && data.inventory_frequency && data.uses_erp && data.estimated_loss && data.main_challenge)
-    return data.contact_consent
-  }, [data, step])
+  const update = (key: QuestionId, value: string | boolean | string[]) => setData((current) => ({ ...current, [key]: value }))
 
-  const next = () => {
-    if (!stepValid) return setError('Preencha os campos obrigatórios para continuar.')
+  const isValid = () => {
+    const value = data[question.id]
+    if (question.id === 'email') return /\S+@\S+\.\S+/.test(data.email)
+    if (question.id === 'whatsapp') return data.whatsapp.replace(/\D/g, '').length >= 10
+    if (question.id === 'sales_channels') return data.sales_channels.length > 0
+    if (question.type === 'consent') return data.contact_consent
+    return typeof value === 'string' ? value.trim().length > 0 : Boolean(value)
+  }
+
+  const advance = () => {
+    if (index >= questions.length - 1) return
+    setTransitioning(true)
+    window.setTimeout(() => {
+      setIndex((current) => current + 1)
+      setTransitioning(false)
+      setError('')
+    }, 220)
+  }
+
+  const choose = (value: string) => {
+    if (transitioning) return
+    if (question.id === 'sales_channels') update('sales_channels', channelValues[value])
+    else update(question.id, value)
     setError('')
-    setStep((current) => Math.min(steps.length - 1, current + 1))
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    setTransitioning(true)
+    window.setTimeout(() => {
+      setIndex((current) => Math.min(questions.length - 1, current + 1))
+      setTransitioning(false)
+    }, 300)
+  }
+
+  const goBack = () => {
+    if (index === 0) return
+    setIndex((current) => current - 1)
+    setError('')
   }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    if (!stepValid) return setError('Confirme o consentimento necessário para continuar.')
-    setSubmitting(true)
-    setError('')
+    if (!isValid()) return setError(question.type === 'consent' ? 'Confirme o consentimento necessário para continuar.' : 'Preencha esta resposta para continuar.')
+    if (index < questions.length - 1) return advance()
+    setSubmitting(true); setError('')
     try {
       await saveLead(data)
       localStorage.setItem('gestok_signup_prefill', JSON.stringify({ email: data.email, fullName: data.full_name, businessName: data.business_name }))
       navigate('/cadastro', { state: { fromLead: true } })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível enviar. Tente novamente.')
-    } finally {
-      setSubmitting(false)
-    }
+    } finally { setSubmitting(false) }
   }
 
   return (
-    <div className="form-page">
+    <div className="form-page conversational-form-page">
       <header className="form-header container"><Brand /><Link to="/"><ArrowLeft size={16} /> Voltar ao site</Link></header>
       <div className="form-progress"><span style={{ width: `${progress}%` }} /></div>
-      <main className="form-layout container">
-        <aside className="form-aside">
-          <div className="aside-icon"><Store size={25} /></div>
-          <span className="kicker">Diagnóstico gratuito</span>
-          <h1>Vamos entender seu estoque?</h1>
-          <p>Leva cerca de 3 minutos. Suas respostas ajudam a Gestok a preparar uma experiência mais útil para sua operação.</p>
-          <div className="aside-list"><span><CheckCircle2 size={17} /> Sem compromisso</span><span><CheckCircle2 size={17} /> 7 dias para experimentar</span><span><LockKeyhole size={17} /> Dados protegidos pela LGPD</span></div>
-          <div className="step-dots">{steps.map((item, index) => <span key={item.title} className={index <= step ? 'active' : ''}>{index < step ? <Check size={13} /> : index + 1}</span>)}</div>
+      <main className="conversation-layout container">
+        <aside className="conversation-aside">
+          <span className="conversation-count">{String(index + 1).padStart(2, '0')}<small>/ {questions.length}</small></span>
+          <div><span className="kicker"><Sparkles size={13} /> Diagnóstico inteligente</span><h1>Uma pergunta de cada vez.</h1><p>Responda no seu ritmo. Nas escolhas, basta tocar em uma opção para avançar.</p></div>
+          <div className="conversation-meta"><span><Clock3 size={16} /> Cerca de {Math.max(1, Math.ceil((questions.length - index) * .12))} min restantes</span><span><ShieldCheck size={16} /> Respostas protegidas</span></div>
         </aside>
 
-        <form className="lead-form" onSubmit={submit}>
-          <div className="form-step-label">Etapa {step + 1} de {steps.length}</div>
-          <h2>{steps[step].title}</h2><p className="form-subtitle">{steps[step].subtitle}</p>
+        <form className={`question-card ${transitioning ? 'question-leaving' : ''}`} onSubmit={submit} key={index}>
+          <div className="question-number-mobile">Pergunta {index + 1} de {questions.length}</div>
+          <span className="form-step-label">{question.eyebrow}</span>
+          <h2>{question.title}</h2>
+          <p className="question-subtitle">{question.subtitle}</p>
 
-          {step === 0 && <div className="field-grid">
-            <label className="field full"><span>Seu nome *</span><input value={data.full_name} onChange={(e) => update('full_name', e.target.value)} placeholder="Como podemos chamar você?" autoComplete="name" /></label>
-            <label className="field"><span>E-mail profissional *</span><input type="email" value={data.email} onChange={(e) => update('email', e.target.value)} placeholder="voce@empresa.com" autoComplete="email" /></label>
-            <label className="field"><span>WhatsApp *</span><input value={data.whatsapp} onChange={(e) => update('whatsapp', e.target.value)} placeholder="(11) 99999-9999" autoComplete="tel" /></label>
-            <label className="field full"><span>Nome do estabelecimento *</span><input value={data.business_name} onChange={(e) => update('business_name', e.target.value)} placeholder="Ex.: Restaurante Sabor da Casa" autoComplete="organization" /></label>
-            <label className="field full"><span>Qual é o seu papel na operação? *</span><select value={data.role} onChange={(e) => update('role', e.target.value)}><option value="">Selecione</option><option>Proprietário(a) / sócio(a)</option><option>Gerente</option><option>Chef / responsável pela cozinha</option><option>Responsável pelo estoque/compras</option><option>Outro</option></select></label>
+          {question.type === 'choice' && <div className={`single-choice-list ${question.options!.length <= 4 ? 'compact' : ''}`}>
+            {question.options!.map((option) => <button type="button" key={option.value} className={selectedValue === option.value ? 'selected' : ''} onClick={() => choose(option.value)} disabled={transitioning}><span className="choice-radio">{selectedValue === option.value && <Check size={14} />}</span><span><strong>{option.label}</strong>{option.detail && <small>{option.detail}</small>}</span><ArrowRight className="choice-arrow" size={17} /></button>)}
           </div>}
 
-          {step === 1 && <div className="field-grid">
-            <div className="field full"><span>Qual tipo descreve melhor o negócio? *</span><div className="choice-grid">{['Restaurante', 'Delivery / dark kitchen', 'Cafeteria', 'Padaria / confeitaria', 'Bar', 'Marmitaria', 'Outro'].map((item) => <Choice key={item} label={item} selected={data.operation_type === item} onClick={() => update('operation_type', item)} />)}</div></div>
-            <div className="field full"><span>Por onde vocês vendem? * <small>Marque todos que se aplicam</small></span><div className="choice-grid three">{['Atendimento presencial', 'iFood / marketplaces', 'Delivery próprio'].map((item) => <Choice key={item} label={item} selected={data.sales_channels.includes(item)} onClick={() => toggleChannel(item)} />)}</div></div>
-            <label className="field"><span>Cidade *</span><input value={data.city} onChange={(e) => update('city', e.target.value)} placeholder="Sua cidade" /></label>
-            <label className="field"><span>Estado *</span><select value={data.state} onChange={(e) => update('state', e.target.value)}><option value="">UF</option>{['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map((uf) => <option key={uf}>{uf}</option>)}</select></label>
-            <label className="field"><span>Quantas unidades? *</span><select value={data.units_count} onChange={(e) => update('units_count', e.target.value)}><option value="">Selecione</option><option>1 unidade</option><option>2 a 3 unidades</option><option>4 a 10 unidades</option><option>Mais de 10</option></select></label>
-            <label className="field"><span>Tamanho da equipe? *</span><select value={data.employees_count} onChange={(e) => update('employees_count', e.target.value)}><option value="">Selecione</option><option>1 a 5 pessoas</option><option>6 a 15 pessoas</option><option>16 a 40 pessoas</option><option>Mais de 40</option></select></label>
-            <label className="field full"><span>Quantos pedidos por mês, aproximadamente? *</span><select value={data.monthly_orders} onChange={(e) => update('monthly_orders', e.target.value)}><option value="">Selecione uma faixa</option><option>Até 500</option><option>501 a 2.000</option><option>2.001 a 5.000</option><option>5.001 a 15.000</option><option>Mais de 15.000</option></select></label>
-          </div>}
+          {['text','email','tel'].includes(question.type) && <div className="single-answer-field"><input autoFocus type={question.type} value={String(data[question.id])} onChange={(event) => update(question.id, event.target.value)} placeholder={question.placeholder} autoComplete={question.id === 'full_name' ? 'name' : question.id === 'business_name' ? 'organization' : question.id === 'email' ? 'email' : question.id === 'whatsapp' ? 'tel' : 'off'} /><small>Pressione Enter ou use o botão para continuar</small></div>}
 
-          {step === 2 && <div className="field-grid">
-            <label className="field"><span>Quantos itens diferentes no estoque? *</span><select value={data.sku_count} onChange={(e) => update('sku_count', e.target.value)}><option value="">Selecione</option><option>Até 30</option><option>31 a 100</option><option>101 a 300</option><option>Mais de 300</option></select></label>
-            <label className="field"><span>Com que frequência fazem inventário? *</span><select value={data.inventory_frequency} onChange={(e) => update('inventory_frequency', e.target.value)}><option value="">Selecione</option><option>Diariamente</option><option>Semanalmente</option><option>Quinzenalmente</option><option>Mensalmente</option><option>Não fazemos</option></select></label>
-            <label className="field full"><span>Como controlam o estoque hoje? *</span><select value={data.inventory_method} onChange={(e) => update('inventory_method', e.target.value)}><option value="">Selecione</option><option>Papel / caderno</option><option>Planilha</option><option>Sistema de PDV</option><option>Software de estoque / ERP</option><option>Não controlamos formalmente</option></select></label>
-            <label className="field"><span>Usam algum ERP ou PDV? *</span><select value={data.uses_erp} onChange={(e) => update('uses_erp', e.target.value)}><option value="">Selecione</option><option>Não</option><option>Sim, mas sem estoque</option><option>Sim, integrado ao estoque</option></select></label>
-            <label className="field"><span>Perda mensal estimada? *</span><select value={data.estimated_loss} onChange={(e) => update('estimated_loss', e.target.value)}><option value="">Selecione</option><option>Até 2%</option><option>Entre 3% e 5%</option><option>Entre 6% e 10%</option><option>Acima de 10%</option><option>Não sabemos medir</option></select></label>
-            <label className="field full"><span>Qual é o maior desafio com estoque hoje? *</span><textarea value={data.main_challenge} onChange={(e) => update('main_challenge', e.target.value)} placeholder="Ex.: compras em excesso, falta de ingrediente, validade, contagem demorada..." rows={4} maxLength={500} /><small>{data.main_challenge.length}/500</small></label>
-          </div>}
+          {question.type === 'textarea' && <div className="single-answer-field"><textarea autoFocus rows={5} maxLength={500} value={data.main_challenge} onChange={(event) => update('main_challenge', event.target.value)} placeholder={question.placeholder} /><small>{data.main_challenge.length}/500 caracteres</small></div>}
 
-          {step === 3 && <div className="consent-block">
-            <div className="privacy-summary"><LockKeyhole size={22} /><div><strong>Seus dados, suas escolhas</strong><p>Usaremos suas respostas para entrar em contato sobre o teste, criar sua experiência e entender o perfil das operações interessadas. Você pode revogar consentimentos a qualquer momento.</p></div></div>
-            <label className="check-field"><input type="checkbox" checked={data.contact_consent} onChange={(e) => update('contact_consent', e.target.checked)} /><span><strong>Concordo com o tratamento dos meus dados para atender este pedido *</strong>Autorizo a Gestok a armazenar as respostas e entrar em contato por e-mail ou WhatsApp sobre o diagnóstico, teste e contratação. Li a <Link to="/privacidade" target="_blank">Política de Privacidade</Link>.</span></label>
-            <label className="check-field"><input type="checkbox" checked={data.marketing_consent} onChange={(e) => update('marketing_consent', e.target.checked)} /><span><strong>Quero receber novidades e conteúdos de marketing (opcional)</strong>Autorizo comunicações sobre estoque, alimentação e produtos da Gestok. Posso cancelar a qualquer momento.</span></label>
-            <p className="legal-note">Ao continuar, você também declara ciência dos nossos <Link to="/termos" target="_blank">Termos de Uso</Link>. O aceite de marketing não é necessário para usar o teste.</p>
+          {question.type === 'state' && <div className="state-choice-grid">{states.map((state) => <button type="button" key={state} className={data.state === state ? 'selected' : ''} onClick={() => choose(state)}>{state}</button>)}</div>}
+
+          {question.type === 'consent' && <div className="consent-block conversation-consent">
+            <div className="privacy-summary"><LockKeyhole size={21} /><div><strong>Você mantém o controle</strong><p>As respostas serão usadas para criar sua experiência, atender ao teste e entender o perfil das operações interessadas.</p></div></div>
+            <label className="check-field"><input type="checkbox" checked={data.contact_consent} onChange={(event) => update('contact_consent', event.target.checked)} /><span><strong>Concordo com o tratamento para atender este pedido *</strong>Autorizo o armazenamento das respostas e o contato por e-mail ou WhatsApp sobre diagnóstico, teste e contratação. Li a <Link to="/privacidade" target="_blank">Política de Privacidade</Link>.</span></label>
+            <label className="check-field"><input type="checkbox" checked={data.marketing_consent} onChange={(event) => update('marketing_consent', event.target.checked)} /><span><strong>Quero receber conteúdos e novidades (opcional)</strong>Autorizo comunicações de marketing da Gestok. Posso cancelar a qualquer momento.</span></label>
+            <p className="legal-note">O aceite de marketing não é necessário para usar o teste. Veja também os <Link to="/termos" target="_blank">Termos de Uso</Link>.</p>
           </div>}
 
           {error && <div className="form-error" role="alert">{error}</div>}
-          <div className="form-navigation">
-            {step > 0 ? <button type="button" className="button button-ghost" onClick={() => { setStep(step - 1); setError('') }}><ChevronLeft size={17} /> Voltar</button> : <span />}
-            {step < steps.length - 1 ? <button type="button" className="button" onClick={next}>Continuar <ArrowRight size={17} /></button> : <button className="button" disabled={submitting}>{submitting ? 'Enviando...' : 'Criar minha conta'} <ArrowRight size={17} /></button>}
+          <div className="question-footer">
+            <button type="button" className="question-back" onClick={goBack} disabled={index === 0}><ChevronLeft size={17} /> Voltar</button>
+            {selectionPhase && <span className="auto-advance-note"><span /> Selecione para avançar</span>}
+            {!selectionPhase && <button className="button button-lg" disabled={submitting}>{submitting ? 'Enviando...' : question.type === 'consent' ? 'Concluir e criar conta' : 'Continuar'} <ArrowRight size={17} /></button>}
           </div>
         </form>
       </main>
