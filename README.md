@@ -4,7 +4,7 @@ MVP de uma plataforma de estoque para restaurantes, deliveries, cafeterias, pada
 
 ## O que já está implementado
 
-- Landing page responsiva e diagnóstico de leads em quatro etapas.
+- Landing page responsiva e diagnóstico conversacional em até dez perguntas.
 - Consentimento necessário separado do consentimento opcional de marketing, com versão e data da política.
 - Cadastro e login com Supabase Auth; modo demonstração quando não há ambiente configurado.
 - Teste gratuito de 7 dias iniciado por trigger no cadastro.

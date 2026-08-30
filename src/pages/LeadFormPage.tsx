@@ -12,7 +12,7 @@ type Question = {
   eyebrow: string
   title: string
   subtitle: string
-  type: 'choice' | 'text' | 'email' | 'tel' | 'textarea' | 'state' | 'consent'
+  type: 'choice' | 'text' | 'email' | 'textarea' | 'consent'
   placeholder?: string
   options?: Option[]
 }
@@ -34,21 +34,8 @@ const questions: Question[] = [
     { value: 'delivery_proprio', label: 'Delivery próprio', detail: 'WhatsApp, site ou entregadores próprios' },
     { value: 'varios', label: 'Vários canais', detail: 'Presencial, marketplace e delivery próprio' },
   ] },
-  { id: 'role', eyebrow: 'Seu papel', title: 'Qual é a sua função na operação?', subtitle: 'Isso nos ajuda a adaptar a experiência ao que você precisa acompanhar.', type: 'choice', options: [
-    { value: 'Proprietário(a) / sócio(a)', label: 'Proprietário(a) ou sócio(a)' },
-    { value: 'Gerente', label: 'Gerente' },
-    { value: 'Chef / responsável pela cozinha', label: 'Chef ou responsável pela cozinha' },
-    { value: 'Responsável pelo estoque/compras', label: 'Responsável pelo estoque ou compras' },
-    { value: 'Outro', label: 'Outra função' },
-  ] },
   { id: 'units_count', eyebrow: 'Tamanho da operação', title: 'Quantas unidades o negócio possui?', subtitle: 'Conte lojas, cozinhas ou pontos de produção ativos.', type: 'choice', options: [
     { value: '1 unidade', label: '1 unidade' }, { value: '2 a 3 unidades', label: '2 a 3 unidades' }, { value: '4 a 10 unidades', label: '4 a 10 unidades' }, { value: 'Mais de 10', label: 'Mais de 10 unidades' },
-  ] },
-  { id: 'employees_count', eyebrow: 'Tamanho da equipe', title: 'Quantas pessoas trabalham na operação?', subtitle: 'Considere cozinha, atendimento, gestão e entregas próprias.', type: 'choice', options: [
-    { value: '1 a 5 pessoas', label: '1 a 5 pessoas' }, { value: '6 a 15 pessoas', label: '6 a 15 pessoas' }, { value: '16 a 40 pessoas', label: '16 a 40 pessoas' }, { value: 'Mais de 40', label: 'Mais de 40 pessoas' },
-  ] },
-  { id: 'monthly_orders', eyebrow: 'Volume de vendas', title: 'Quantos pedidos vocês atendem por mês?', subtitle: 'Uma estimativa já é suficiente.', type: 'choice', options: [
-    { value: 'Até 500', label: 'Até 500 pedidos' }, { value: '501 a 2.000', label: '501 a 2.000 pedidos' }, { value: '2.001 a 5.000', label: '2.001 a 5.000 pedidos' }, { value: '5.001 a 15.000', label: '5.001 a 15.000 pedidos' }, { value: 'Mais de 15.000', label: 'Mais de 15.000 pedidos' },
   ] },
   { id: 'sku_count', eyebrow: 'Complexidade do estoque', title: 'Quantos itens diferentes existem no estoque?', subtitle: 'Pense em ingredientes, bebidas, embalagens e materiais de consumo.', type: 'choice', options: [
     { value: 'Até 30', label: 'Até 30 itens' }, { value: '31 a 100', label: '31 a 100 itens' }, { value: '101 a 300', label: '101 a 300 itens' }, { value: 'Mais de 300', label: 'Mais de 300 itens' },
@@ -56,22 +43,10 @@ const questions: Question[] = [
   { id: 'inventory_method', eyebrow: 'Rotina atual', title: 'Como vocês controlam o estoque hoje?', subtitle: 'Escolha o método usado na maior parte do tempo.', type: 'choice', options: [
     { value: 'Papel / caderno', label: 'Papel ou caderno' }, { value: 'Planilha', label: 'Planilha' }, { value: 'Sistema de PDV', label: 'Sistema de PDV' }, { value: 'Software de estoque / ERP', label: 'Software de estoque ou ERP' }, { value: 'Não controlamos formalmente', label: 'Ainda não controlamos formalmente' },
   ] },
-  { id: 'inventory_frequency', eyebrow: 'Frequência', title: 'Com que frequência vocês contam o estoque?', subtitle: 'Considere a contagem física dos itens.', type: 'choice', options: [
-    { value: 'Diariamente', label: 'Todos os dias' }, { value: 'Semanalmente', label: 'Toda semana' }, { value: 'Quinzenalmente', label: 'A cada 15 dias' }, { value: 'Mensalmente', label: 'Uma vez por mês' }, { value: 'Não fazemos', label: 'Não fazemos inventário' },
-  ] },
-  { id: 'uses_erp', eyebrow: 'Sistemas', title: 'Vocês usam algum ERP ou PDV?', subtitle: 'Queremos entender como a Gestok pode conviver com as ferramentas atuais.', type: 'choice', options: [
-    { value: 'Não', label: 'Não usamos' }, { value: 'Sim, mas sem estoque', label: 'Sim, mas sem controle de estoque' }, { value: 'Sim, integrado ao estoque', label: 'Sim, integrado ao estoque' },
-  ] },
-  { id: 'estimated_loss', eyebrow: 'Perdas', title: 'Quanto do estoque vocês estimam perder por mês?', subtitle: 'Pode considerar validade, desperdício, erros e diferenças de contagem.', type: 'choice', options: [
-    { value: 'Até 2%', label: 'Até 2%' }, { value: 'Entre 3% e 5%', label: 'Entre 3% e 5%' }, { value: 'Entre 6% e 10%', label: 'Entre 6% e 10%' }, { value: 'Acima de 10%', label: 'Acima de 10%' }, { value: 'Não sabemos medir', label: 'Ainda não conseguimos medir' },
-  ] },
+  { id: 'main_challenge', eyebrow: 'O que mais importa', title: 'Qual é o maior desafio do estoque hoje?', subtitle: 'Conte com suas palavras. Uma frase já ajuda bastante.', type: 'textarea', placeholder: 'Ex.: compras em excesso, falta de ingrediente, validade, contagem demorada...' },
   { id: 'full_name', eyebrow: 'Quase lá', title: 'Como podemos chamar você?', subtitle: 'Use seu nome para personalizar sua conta.', type: 'text', placeholder: 'Digite seu nome completo' },
   { id: 'business_name', eyebrow: 'Seu estabelecimento', title: 'Qual é o nome do negócio?', subtitle: 'É assim que ele aparecerá dentro da Gestok.', type: 'text', placeholder: 'Ex.: Restaurante Sabor da Casa' },
   { id: 'email', eyebrow: 'Acesso à conta', title: 'Qual é o seu melhor e-mail?', subtitle: 'Ele será usado para criar sua conta e enviar informações do teste.', type: 'email', placeholder: 'voce@empresa.com' },
-  { id: 'whatsapp', eyebrow: 'Contato', title: 'Qual é o seu WhatsApp?', subtitle: 'Inclua o DDD. Usaremos este número conforme suas escolhas de consentimento.', type: 'tel', placeholder: '(11) 99999-9999' },
-  { id: 'city', eyebrow: 'Localização', title: 'Em qual cidade fica a operação?', subtitle: 'Isso ajuda a entender diferenças regionais de operação.', type: 'text', placeholder: 'Digite a cidade' },
-  { id: 'state', eyebrow: 'Localização', title: 'E em qual estado?', subtitle: 'Selecione a UF da unidade principal.', type: 'state' },
-  { id: 'main_challenge', eyebrow: 'O que mais importa', title: 'Qual é o maior desafio do estoque hoje?', subtitle: 'Conte com suas palavras. Uma frase já ajuda bastante.', type: 'textarea', placeholder: 'Ex.: compras em excesso, falta de ingrediente, validade, contagem demorada...' },
   { id: 'contact_consent', eyebrow: 'Privacidade', title: 'Como podemos usar seus dados?', subtitle: 'Escolha com transparência antes de criar sua conta.', type: 'consent' },
 ]
 
@@ -89,8 +64,6 @@ const initialData: LeadFormData = {
   estimated_loss: '', main_challenge: '', contact_consent: false, marketing_consent: false, privacy_policy_version: '2026-08-30',
 }
 
-const states = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO']
-
 export function LeadFormPage() {
   const [index, setIndex] = useState(0)
   const [data, setData] = useState(initialData)
@@ -100,7 +73,7 @@ export function LeadFormPage() {
   const navigate = useNavigate()
   const question = questions[index]
   const progress = ((index + 1) / questions.length) * 100
-  const selectionPhase = question.type === 'choice' || question.type === 'state'
+  const selectionPhase = question.type === 'choice'
 
   const selectedValue = useMemo(() => {
     if (question.id !== 'sales_channels') return String(data[question.id] ?? '')
@@ -113,7 +86,6 @@ export function LeadFormPage() {
   const isValid = () => {
     const value = data[question.id]
     if (question.id === 'email') return /\S+@\S+\.\S+/.test(data.email)
-    if (question.id === 'whatsapp') return data.whatsapp.replace(/\D/g, '').length >= 10
     if (question.id === 'sales_channels') return data.sales_channels.length > 0
     if (question.type === 'consent') return data.contact_consent
     return typeof value === 'string' ? value.trim().length > 0 : Boolean(value)
@@ -182,15 +154,13 @@ export function LeadFormPage() {
             {question.options!.map((option) => <button type="button" key={option.value} className={selectedValue === option.value ? 'selected' : ''} aria-pressed={selectedValue === option.value} onClick={() => choose(option.value)} disabled={transitioning}><span className="choice-radio">{selectedValue === option.value && <Check size={14} />}</span><span><strong>{option.label}</strong>{option.detail && <small>{option.detail}</small>}</span><ArrowRight className="choice-arrow" size={17} /></button>)}
           </div>}
 
-          {['text','email','tel'].includes(question.type) && <div className="single-answer-field"><input autoFocus type={question.type} value={String(data[question.id])} onChange={(event) => update(question.id, event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); if (isValid()) advance(); else setError('Preencha esta resposta para continuar.') } }} enterKeyHint="next" placeholder={question.placeholder} autoComplete={question.id === 'full_name' ? 'name' : question.id === 'business_name' ? 'organization' : question.id === 'email' ? 'email' : question.id === 'whatsapp' ? 'tel' : 'off'} /><small>Pressione Enter ou use o botão para continuar</small></div>}
+          {['text','email'].includes(question.type) && <div className="single-answer-field"><input autoFocus type={question.type} value={String(data[question.id])} onChange={(event) => update(question.id, event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); if (isValid()) advance(); else setError('Preencha esta resposta para continuar.') } }} enterKeyHint="next" placeholder={question.placeholder} autoComplete={question.id === 'full_name' ? 'name' : question.id === 'business_name' ? 'organization' : question.id === 'email' ? 'email' : 'off'} /><small>Pressione Enter ou use o botão para continuar</small></div>}
 
           {question.type === 'textarea' && <div className="single-answer-field"><textarea autoFocus rows={5} maxLength={500} value={data.main_challenge} onChange={(event) => update('main_challenge', event.target.value)} placeholder={question.placeholder} /><small>{data.main_challenge.length}/500 caracteres</small></div>}
 
-          {question.type === 'state' && <div className="state-choice-grid">{states.map((state) => <button type="button" key={state} className={data.state === state ? 'selected' : ''} onClick={() => choose(state)}>{state}</button>)}</div>}
-
           {question.type === 'consent' && <div className="consent-block conversation-consent">
             <div className="privacy-summary"><LockKeyhole size={21} /><div><strong>Você mantém o controle</strong><p>As respostas serão usadas para criar sua experiência, atender ao teste e entender o perfil das operações interessadas.</p></div></div>
-            <label className="check-field"><input type="checkbox" checked={data.contact_consent} onChange={(event) => update('contact_consent', event.target.checked)} /><span><strong>Concordo com o tratamento para atender este pedido *</strong>Autorizo o armazenamento das respostas e o contato por e-mail ou WhatsApp sobre diagnóstico, teste e contratação. Li a <Link to="/privacidade" target="_blank">Política de Privacidade</Link>.</span></label>
+            <label className="check-field"><input type="checkbox" checked={data.contact_consent} onChange={(event) => update('contact_consent', event.target.checked)} /><span><strong>Concordo com o tratamento para atender este pedido *</strong>Autorizo o armazenamento das respostas e o contato por e-mail sobre diagnóstico, teste e contratação. Li a <Link to="/privacidade" target="_blank">Política de Privacidade</Link>.</span></label>
             <label className="check-field"><input type="checkbox" checked={data.marketing_consent} onChange={(event) => update('marketing_consent', event.target.checked)} /><span><strong>Quero receber conteúdos e novidades (opcional)</strong>Autorizo comunicações de marketing da Gestok. Posso cancelar a qualquer momento.</span></label>
             <p className="legal-note">O aceite de marketing não é necessário para usar o teste. Veja também os <Link to="/termos" target="_blank">Termos de Uso</Link>.</p>
           </div>}
