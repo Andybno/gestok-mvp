@@ -31,6 +31,9 @@ export type Profile = {
   trial_ends_at: string
   subscription_status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'expired'
   stripe_customer_id?: string | null
+  is_admin?: boolean
+  last_seen_at?: string
+  created_at?: string
 }
 
 export type LeadFormData = {
@@ -63,4 +66,38 @@ export type InventoryScanItem = {
   unit: string
   confidence: number
   note?: string
+}
+
+export type AdminFunnelStep = {
+  key: string
+  label: string
+  count: number
+}
+
+export type AdminUserSummary = {
+  id: string
+  email: string
+  full_name: string
+  business_name: string
+  subscription_status: Profile['subscription_status']
+  created_at: string
+  last_seen_at: string
+  products_count: number
+  movements_count: number
+}
+
+export type AdminOverview = {
+  started: number
+  completed_leads: number
+  accounts_created: number
+  product_users: number
+  question_steps: AdminFunnelStep[]
+  users: AdminUserSummary[]
+}
+
+export type AdminUserDetail = {
+  user: AdminUserSummary
+  lead: (Partial<LeadFormData> & { created_at?: string }) | null
+  products: Product[]
+  movements: StockMovement[]
 }

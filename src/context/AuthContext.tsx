@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { User } from '@supabase/supabase-js'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
+import { touchLastSeen } from '../lib/api'
 import type { Profile } from '../types'
 
 type AuthContextValue = {
@@ -9,16 +10,27 @@ type AuthContextValue = {
   loading: boolean
   isDemo: boolean
   signUp: (data: { email: string; password: string; fullName: string; businessName: string }) => Promise<{ needsEmailConfirmation: boolean }>
-  signIn: (email: string, password: string) => Promise<void>
+  signIn: (email: string, password: string) => Promise<{ isAdmin: boolean }>
   enterDemo: () => void
+  enterAdminDemo: () => void
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 const DEMO_AUTH_KEY = 'gestok_demo_auth'
+const DEMO_ADMIN_KEY = 'gestok_demo_admin'
 
-function demoProfile(): Profile {
+function demoProfile(admin = false): Profile {
+  if (admin) return {
+    id: 'demo-admin',
+    full_name: 'Administrador Gestok',
+    business_name: 'Gestok',
+    trial_ends_at: new Date(Date.now() + 365 * 86400000).toISOString(),
+    subscription_status: 'active',
+    is_admin: true,
+    last_seen_at: new Date().toISOString(),
+  }
   const saved = localStorage.getItem('gestok_demo_profile')
   if (saved) return JSON.parse(saved)
   return {
@@ -27,6 +39,8 @@ function demoProfile(): Profile {
     business_name: 'Bistrô da Ana',
     trial_ends_at: new Date(Date.now() + 6 * 86400000).toISOString(),
     subscription_status: 'trialing',
+    is_admin: false,
+    last_seen_at: new Date().toISOString(),
   }
 }
 
@@ -40,16 +54,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!supabase) return
     const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single()
     if (error) throw error
-    setProfile(data as Profile)
+    const nextProfile = data as Profile
+    setProfile(nextProfile)
+    return nextProfile
   }
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
       const active = localStorage.getItem(DEMO_AUTH_KEY) === 'true'
+      const admin = localStorage.getItem(DEMO_ADMIN_KEY) === 'true'
       setIsDemo(active)
       if (active) {
-        setUser({ id: 'demo-user', email: 'demo@gestok.app' } as User)
-        setProfile(demoProfile())
+        setUser({ id: admin ? 'demo-admin' : 'demo-user', email: admin ? 'admin@gestok.app' : 'demo@gestok.app' } as User)
+        setProfile(demoProfile(admin))
       }
       setLoading(false)
       return
@@ -70,6 +87,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => listener.subscription.unsubscribe()
   }, [])
 
+  useEffect(() => {
+    if (!user || !supabase) return
+    const touch = () => { if (document.visibilityState === 'visible') void touchLastSeen().catch(() => undefined) }
+    touch()
+    const interval = window.setInterval(touch, 5 * 60 * 1000)
+    document.addEventListener('visibilitychange', touch)
+    return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', touch) }
+  }, [user])
+
   const value = useMemo<AuthContextValue>(() => ({
     user,
     profile,
@@ -83,6 +109,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           business_name: businessName,
           trial_ends_at: new Date(Date.now() + 7 * 86400000).toISOString(),
           subscription_status: 'trialing',
+          is_admin: false,
+          last_seen_at: new Date().toISOString(),
         }
         localStorage.setItem(DEMO_AUTH_KEY, 'true')
         localStorage.setItem('gestok_demo_profile', JSON.stringify(nextProfile))
@@ -103,23 +131,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async signIn(email, password) {
       if (!supabase) {
         localStorage.setItem(DEMO_AUTH_KEY, 'true')
+        localStorage.removeItem(DEMO_ADMIN_KEY)
         setIsDemo(true)
         setUser({ id: 'demo-user', email } as User)
         setProfile(demoProfile())
-        return
+        return { isAdmin: false }
       }
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
+      const nextProfile = data.user ? await loadProfile(data.user.id) : null
+      return { isAdmin: Boolean(nextProfile?.is_admin) }
     },
     enterDemo() {
       localStorage.setItem(DEMO_AUTH_KEY, 'true')
+      localStorage.removeItem(DEMO_ADMIN_KEY)
       setIsDemo(true)
       setUser({ id: 'demo-user', email: 'demo@gestok.app' } as User)
       setProfile(demoProfile())
     },
+    enterAdminDemo() {
+      localStorage.setItem(DEMO_AUTH_KEY, 'true')
+      localStorage.setItem(DEMO_ADMIN_KEY, 'true')
+      setIsDemo(true)
+      setUser({ id: 'demo-admin', email: 'admin@gestok.app' } as User)
+      setProfile(demoProfile(true))
+    },
     async signOut() {
       if (supabase) await supabase.auth.signOut()
       localStorage.removeItem(DEMO_AUTH_KEY)
+      localStorage.removeItem(DEMO_ADMIN_KEY)
       setUser(null)
       setProfile(null)
       setIsDemo(false)

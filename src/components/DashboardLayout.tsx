@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { BrainCircuit, ChevronRight, CircleUserRound, CreditCard, LayoutDashboard, LogOut, Menu, PackageSearch, Repeat2, X } from 'lucide-react'
+import { BrainCircuit, ChevronRight, CircleUserRound, CreditCard, LayoutDashboard, LogOut, Menu, PackageSearch, Repeat2, ShieldCheck, X } from 'lucide-react'
 import { Brand } from './Brand'
 import { useAuth } from '../context/AuthContext'
 
@@ -17,6 +17,7 @@ const pageNames: Record<string, string> = {
   '/app/movimentacoes': 'Entradas e saídas',
   '/app/contagem-ia': 'Contagem por foto',
   '/app/assinatura': 'Assinatura',
+  '/admin': 'Administração',
 }
 
 export function DashboardLayout() {
@@ -25,6 +26,7 @@ export function DashboardLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const trialDays = profile ? Math.max(0, Math.ceil((new Date(profile.trial_ends_at).getTime() - Date.now()) / 86400000)) : 7
+  const visibleNavigation = profile?.is_admin ? [...navigation, { to: '/admin', label: 'Administração', icon: ShieldCheck }] : navigation
 
   const handleSignOut = async () => {
     await signOut()
@@ -39,7 +41,7 @@ export function DashboardLayout() {
           <button className="icon-button mobile-only" onClick={() => setMenuOpen(false)} aria-label="Fechar menu"><X size={20} /></button>
         </div>
         <nav className="sidebar-nav" aria-label="Menu principal">
-          {navigation.map(({ to, label, icon: Icon, badge, end }) => (
+          {visibleNavigation.map(({ to, label, icon: Icon, badge, end }) => (
             <NavLink key={to} to={to} end={end} onClick={() => setMenuOpen(false)}>
               <Icon size={19} /><span>{label}</span>{badge && <small>{badge}</small>}
             </NavLink>

@@ -9,6 +9,7 @@ import { ProductsPage } from './pages/ProductsPage'
 import { MovementsPage } from './pages/MovementsPage'
 import { ScanPage } from './pages/ScanPage'
 import { BillingPage } from './pages/BillingPage'
+import { AdminPage } from './pages/AdminPage'
 import { PrivacyPage, TermsPage } from './pages/LegalPages'
 import './App.css'
 
@@ -18,6 +19,13 @@ function ProtectedRoute() {
   return user ? <DashboardLayout /> : <Navigate to="/entrar" replace />
 }
 
+function ProtectedAdminRoute() {
+  const { user, profile, loading } = useAuth()
+  if (loading) return <div className="app-loader"><span /><p>Validando acesso administrativo...</p></div>
+  if (!user) return <Navigate to="/admin/entrar" replace />
+  return profile?.is_admin ? <AdminPage /> : <Navigate to="/app" replace />
+}
+
 export default function App() {
   return (
     <Routes>
@@ -25,6 +33,8 @@ export default function App() {
       <Route path="/diagnostico" element={<LeadFormPage />} />
       <Route path="/cadastro" element={<AuthPage mode="signup" />} />
       <Route path="/entrar" element={<AuthPage mode="signin" />} />
+      <Route path="/admin/entrar" element={<AuthPage mode="signin" adminMode />} />
+      <Route path="/admin" element={<ProtectedAdminRoute />} />
       <Route path="/privacidade" element={<PrivacyPage />} />
       <Route path="/termos" element={<TermsPage />} />
       <Route path="/app" element={<ProtectedRoute />}>

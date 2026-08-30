@@ -1,8 +1,42 @@
 import { demoStore } from './demoStore'
+import { demoAdminOverview, demoAdminUserDetail } from './adminDemo'
 import { isSupabaseConfigured, supabase } from './supabase'
-import type { InventoryScanItem, LeadFormData, Product, StockMovement } from '../types'
+import type { AdminOverview, AdminUserDetail, InventoryScanItem, LeadFormData, Product, StockMovement } from '../types'
 
 const uid = () => crypto.randomUUID()
+const FUNNEL_SESSION_KEY = 'gestok_funnel_session_id'
+const DEMO_FUNNEL_KEY = 'gestok_demo_funnel'
+
+function funnelSessionId() {
+  const saved = localStorage.getItem(FUNNEL_SESSION_KEY)
+  if (saved) return saved
+  const id = uid()
+  localStorage.setItem(FUNNEL_SESSION_KEY, id)
+  return id
+}
+
+export async function trackLeadAnswer(questionKey: string, questionNumber: number) {
+  const sessionId = funnelSessionId()
+  if (!supabase) {
+    const saved = JSON.parse(localStorage.getItem(DEMO_FUNNEL_KEY) || '{}') as { answered_keys?: string[]; last_question?: number; started_at?: string }
+    const answeredKeys = Array.from(new Set([...(saved.answered_keys || []), questionKey]))
+    localStorage.setItem(DEMO_FUNNEL_KEY, JSON.stringify({ answered_keys: answeredKeys, last_question: Math.max(saved.last_question || 0, questionNumber), started_at: saved.started_at || new Date().toISOString(), updated_at: new Date().toISOString() }))
+    return
+  }
+  const { error } = await supabase.rpc('track_lead_progress', { p_session_id: sessionId, p_question: questionNumber, p_question_key: questionKey })
+  if (error) throw error
+}
+
+async function completeLeadFunnel(leadId: string) {
+  const sessionId = funnelSessionId()
+  if (!supabase) {
+    const saved = JSON.parse(localStorage.getItem(DEMO_FUNNEL_KEY) || '{}')
+    localStorage.setItem(DEMO_FUNNEL_KEY, JSON.stringify({ ...saved, lead_id: leadId, completed_at: new Date().toISOString() }))
+    return
+  }
+  const { error } = await supabase.rpc('complete_lead_funnel', { p_session_id: sessionId, p_lead_id: leadId })
+  if (error) throw error
+}
 
 export async function saveLead(lead: LeadFormData) {
   const payload = {
@@ -15,12 +49,34 @@ export async function saveLead(lead: LeadFormData) {
     const id = uid()
     localStorage.setItem('gestok_lead', JSON.stringify({ id, ...payload }))
     localStorage.setItem('gestok_lead_id', id)
+    await completeLeadFunnel(id)
     return id
   }
   const { data, error } = await supabase.from('leads').insert(payload).select('id').single()
   if (error) throw error
   localStorage.setItem('gestok_lead_id', data.id)
+  await completeLeadFunnel(data.id).catch(() => undefined)
   return data.id as string
+}
+
+export async function touchLastSeen() {
+  if (!supabase) return
+  const { error } = await supabase.rpc('touch_last_seen')
+  if (error) throw error
+}
+
+export async function getAdminOverview(): Promise<AdminOverview> {
+  if (!supabase) return demoAdminOverview()
+  const { data, error } = await supabase.rpc('admin_overview')
+  if (error) throw error
+  return data as AdminOverview
+}
+
+export async function getAdminUserDetail(userId: string): Promise<AdminUserDetail> {
+  if (!supabase) return demoAdminUserDetail(userId)
+  const { data, error } = await supabase.rpc('admin_user_detail', { p_user_id: userId })
+  if (error) throw error
+  return data as AdminUserDetail
 }
 
 export async function listProducts(): Promise<Product[]> {

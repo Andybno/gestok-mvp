@@ -2,7 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { ArrowLeft, ArrowRight, Check, ChevronLeft, Clock3, LockKeyhole, ShieldCheck, Sparkles } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Brand } from '../components/Brand'
-import { saveLead } from '../lib/api'
+import { saveLead, trackLeadAnswer } from '../lib/api'
 import type { LeadFormData } from '../types'
 
 type QuestionId = keyof LeadFormData
@@ -21,11 +21,9 @@ const questions: Question[] = [
   { id: 'operation_type', eyebrow: 'Sobre o negócio', title: 'Qual opção descreve melhor sua operação?', subtitle: 'Escolha a alternativa mais próxima da sua realidade.', type: 'choice', options: [
     { value: 'Restaurante', label: 'Restaurante', detail: 'Atendimento com salão e cozinha' },
     { value: 'Delivery / dark kitchen', label: 'Delivery ou dark kitchen', detail: 'Produção focada em entregas' },
-    { value: 'Cafeteria', label: 'Cafeteria', detail: 'Cafés, bebidas e refeições rápidas' },
-    { value: 'Padaria / confeitaria', label: 'Padaria ou confeitaria', detail: 'Produção própria e balcão' },
-    { value: 'Bar', label: 'Bar', detail: 'Bebidas, porções e cozinha' },
-    { value: 'Marmitaria', label: 'Marmitaria', detail: 'Refeições prontas e recorrentes' },
-    { value: 'Outro', label: 'Outro tipo', detail: 'Uma operação diferente das opções' },
+    { value: 'Cafeteria / padaria', label: 'Cafeteria ou padaria', detail: 'Cafés, produção própria e balcão' },
+    { value: 'Bar / lanchonete', label: 'Bar ou lanchonete', detail: 'Bebidas, porções e refeições rápidas' },
+    { value: 'Marmitaria / outro', label: 'Marmitaria ou outro', detail: 'Refeições prontas ou outro formato' },
   ] },
   { id: 'sales_channels', eyebrow: 'Canais de venda', title: 'Como seus clientes compram hoje?', subtitle: 'Considere o canal que melhor representa sua rotina atual.', type: 'choice', options: [
     { value: 'presencial', label: 'Somente presencial', detail: 'Salão, balcão ou retirada no local' },
@@ -48,9 +46,7 @@ const questions: Question[] = [
     { value: 'Perdas e desperdícios', label: 'Perdas e desperdícios', detail: 'Validade, preparo ou descarte de produtos' },
     { value: 'Falta de itens na operação', label: 'Falta de itens na operação', detail: 'Ingredientes acabam em momentos importantes' },
     { value: 'Compras em excesso', label: 'Compras em excesso', detail: 'Dinheiro parado em produtos sem giro' },
-    { value: 'Diferenças no estoque', label: 'Diferenças no estoque', detail: 'O estoque físico não bate com o registrado' },
-    { value: 'Falta de visibilidade', label: 'Falta de visibilidade', detail: 'É difícil acompanhar consumo, saldo e custos' },
-    { value: 'Outro desafio', label: 'Outro desafio', detail: 'O principal problema não está nesta lista' },
+    { value: 'Diferenças e falta de visibilidade', label: 'Diferenças e falta de visibilidade', detail: 'O físico não bate e é difícil acompanhar saldos' },
   ] },
   { id: 'full_name', eyebrow: 'Quase lá', title: 'Como podemos chamar você?', subtitle: 'Use seu nome para personalizar sua conta.', type: 'text', placeholder: 'Digite seu nome completo' },
   { id: 'business_name', eyebrow: 'Seu estabelecimento', title: 'Qual é o nome do negócio?', subtitle: 'É assim que ele aparecerá dentro da Gestok.', type: 'text', placeholder: 'Ex.: Restaurante Sabor da Casa' },
@@ -113,6 +109,7 @@ export function LeadFormPage() {
     if (transitioning) return
     if (question.id === 'sales_channels') update('sales_channels', channelValues[value])
     else update(question.id, value)
+    void trackLeadAnswer(question.id, index + 1).catch(() => undefined)
     setError('')
     setTransitioning(true)
     window.setTimeout(() => {
@@ -130,6 +127,7 @@ export function LeadFormPage() {
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (!isValid()) return setError(question.type === 'consent' ? 'Confirme o consentimento necessário para continuar.' : 'Preencha esta resposta para continuar.')
+    await trackLeadAnswer(question.id, index + 1).catch(() => undefined)
     if (index < questions.length - 1) return advance()
     setSubmitting(true); setError('')
     try {
@@ -162,7 +160,7 @@ export function LeadFormPage() {
             {question.options!.map((option) => <button type="button" key={option.value} className={selectedValue === option.value ? 'selected' : ''} aria-pressed={selectedValue === option.value} onClick={() => choose(option.value)} disabled={transitioning}><span className="choice-radio">{selectedValue === option.value && <Check size={14} />}</span><span><strong>{option.label}</strong>{option.detail && <small>{option.detail}</small>}</span><ArrowRight className="choice-arrow" size={17} /></button>)}
           </div>}
 
-          {['text','email'].includes(question.type) && <div className="single-answer-field"><input autoFocus type={question.type} value={String(data[question.id])} onChange={(event) => update(question.id, event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); if (isValid()) advance(); else setError('Preencha esta resposta para continuar.') } }} enterKeyHint="next" placeholder={question.placeholder} autoComplete={question.id === 'full_name' ? 'name' : question.id === 'business_name' ? 'organization' : question.id === 'email' ? 'email' : 'off'} /><small>Pressione Enter ou use o botão para continuar</small></div>}
+          {['text','email'].includes(question.type) && <div className="single-answer-field"><input autoFocus type={question.type} value={String(data[question.id])} onChange={(event) => update(question.id, event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); if (isValid()) void trackLeadAnswer(question.id, index + 1).catch(() => undefined).finally(advance); else setError('Preencha esta resposta para continuar.') } }} enterKeyHint="next" placeholder={question.placeholder} autoComplete={question.id === 'full_name' ? 'name' : question.id === 'business_name' ? 'organization' : question.id === 'email' ? 'email' : 'off'} /><small>Pressione Enter ou use o botão para continuar</small></div>}
 
           {question.type === 'consent' && <div className="consent-block conversation-consent">
             <div className="privacy-summary"><LockKeyhole size={21} /><div><strong>Você mantém o controle</strong><p>As respostas serão usadas para criar sua experiência, atender ao teste e entender o perfil das operações interessadas.</p></div></div>

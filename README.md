@@ -14,6 +14,7 @@ MVP de uma plataforma de estoque para restaurantes, deliveries, cafeterias, pada
 - Remoção da foto após o processamento; só o resultado estruturado é mantido.
 - Checkout de assinatura, portal do cliente e webhook do Stripe.
 - Row Level Security (RLS) por usuário e bloqueio de escrita quando o teste termina.
+- Painel administrativo protegido com funil das 10 perguntas, conversão em conta, primeiro produto, último acesso e consulta dos dados de cada usuário.
 - `.htaccess` para rotas React na Hostinger e CI de build no GitHub Actions.
 
 ## Stack
@@ -34,7 +35,7 @@ Sem as variáveis do Supabase, o botão **Explorar demonstração** habilita dad
 
 ## Configurar Supabase
 
-1. Crie um projeto e execute `supabase/migrations/202608300001_initial_schema.sql` no SQL Editor, ou use `supabase db push` com o projeto vinculado.
+1. Crie um projeto e execute as migrations em `supabase/migrations` na ordem, ou use `supabase db push` com o projeto vinculado.
 2. Em Authentication, configure o URL do site e os URLs de redirecionamento do domínio final.
 3. Publique as quatro funções:
 
@@ -64,6 +65,18 @@ VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
 VITE_SUPABASE_ANON_KEY=sua_chave_publica
 VITE_APP_URL=https://seu-dominio.com.br
 ```
+
+### Criar a conta administradora
+
+Crie primeiro uma conta normal pelo aplicativo. Depois, no SQL Editor do Supabase, promova somente o e-mail autorizado:
+
+```sql
+update public.profiles
+set is_admin = true
+where id = (select id from auth.users where email = 'SEU-EMAIL-ADMIN');
+```
+
+O acesso administrativo fica em `/admin/entrar`. Não coloque senhas ou listas de administradores no código frontend.
 
 ## Configurar Stripe
 
