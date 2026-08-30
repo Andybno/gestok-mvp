@@ -12,7 +12,7 @@ type Question = {
   eyebrow: string
   title: string
   subtitle: string
-  type: 'choice' | 'text' | 'email' | 'textarea' | 'consent'
+  type: 'choice' | 'text' | 'email' | 'consent'
   placeholder?: string
   options?: Option[]
 }
@@ -43,7 +43,15 @@ const questions: Question[] = [
   { id: 'inventory_method', eyebrow: 'Rotina atual', title: 'Como vocês controlam o estoque hoje?', subtitle: 'Escolha o método usado na maior parte do tempo.', type: 'choice', options: [
     { value: 'Papel / caderno', label: 'Papel ou caderno' }, { value: 'Planilha', label: 'Planilha' }, { value: 'Sistema de PDV', label: 'Sistema de PDV' }, { value: 'Software de estoque / ERP', label: 'Software de estoque ou ERP' }, { value: 'Não controlamos formalmente', label: 'Ainda não controlamos formalmente' },
   ] },
-  { id: 'main_challenge', eyebrow: 'O que mais importa', title: 'Qual é o maior desafio do estoque hoje?', subtitle: 'Conte com suas palavras. Uma frase já ajuda bastante.', type: 'textarea', placeholder: 'Ex.: compras em excesso, falta de ingrediente, validade, contagem demorada...' },
+  { id: 'main_challenge', eyebrow: 'O que mais importa', title: 'Qual é o maior desafio do estoque hoje?', subtitle: 'Selecione o problema que mais impacta sua operação.', type: 'choice', options: [
+    { value: 'Contagem manual demorada', label: 'Contagem manual demorada', detail: 'O inventário consome muito tempo da equipe' },
+    { value: 'Perdas e desperdícios', label: 'Perdas e desperdícios', detail: 'Validade, preparo ou descarte de produtos' },
+    { value: 'Falta de itens na operação', label: 'Falta de itens na operação', detail: 'Ingredientes acabam em momentos importantes' },
+    { value: 'Compras em excesso', label: 'Compras em excesso', detail: 'Dinheiro parado em produtos sem giro' },
+    { value: 'Diferenças no estoque', label: 'Diferenças no estoque', detail: 'O estoque físico não bate com o registrado' },
+    { value: 'Falta de visibilidade', label: 'Falta de visibilidade', detail: 'É difícil acompanhar consumo, saldo e custos' },
+    { value: 'Outro desafio', label: 'Outro desafio', detail: 'O principal problema não está nesta lista' },
+  ] },
   { id: 'full_name', eyebrow: 'Quase lá', title: 'Como podemos chamar você?', subtitle: 'Use seu nome para personalizar sua conta.', type: 'text', placeholder: 'Digite seu nome completo' },
   { id: 'business_name', eyebrow: 'Seu estabelecimento', title: 'Qual é o nome do negócio?', subtitle: 'É assim que ele aparecerá dentro da Gestok.', type: 'text', placeholder: 'Ex.: Restaurante Sabor da Casa' },
   { id: 'email', eyebrow: 'Acesso à conta', title: 'Qual é o seu melhor e-mail?', subtitle: 'Ele será usado para criar sua conta e enviar informações do teste.', type: 'email', placeholder: 'voce@empresa.com' },
@@ -155,8 +163,6 @@ export function LeadFormPage() {
           </div>}
 
           {['text','email'].includes(question.type) && <div className="single-answer-field"><input autoFocus type={question.type} value={String(data[question.id])} onChange={(event) => update(question.id, event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); if (isValid()) advance(); else setError('Preencha esta resposta para continuar.') } }} enterKeyHint="next" placeholder={question.placeholder} autoComplete={question.id === 'full_name' ? 'name' : question.id === 'business_name' ? 'organization' : question.id === 'email' ? 'email' : 'off'} /><small>Pressione Enter ou use o botão para continuar</small></div>}
-
-          {question.type === 'textarea' && <div className="single-answer-field"><textarea autoFocus rows={5} maxLength={500} value={data.main_challenge} onChange={(event) => update('main_challenge', event.target.value)} placeholder={question.placeholder} /><small>{data.main_challenge.length}/500 caracteres</small></div>}
 
           {question.type === 'consent' && <div className="consent-block conversation-consent">
             <div className="privacy-summary"><LockKeyhole size={21} /><div><strong>Você mantém o controle</strong><p>As respostas serão usadas para criar sua experiência, atender ao teste e entender o perfil das operações interessadas.</p></div></div>
