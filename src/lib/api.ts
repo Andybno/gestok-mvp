@@ -39,24 +39,27 @@ async function completeLeadFunnel(leadId: string) {
 }
 
 export async function saveLead(lead: LeadFormData) {
+  const id = uid()
   const payload = {
+    id,
     ...lead,
     contact_consent_at: lead.contact_consent ? new Date().toISOString() : null,
     marketing_consent_at: lead.marketing_consent ? new Date().toISOString() : null,
     source: 'landing_page',
   }
   if (!supabase) {
-    const id = uid()
-    localStorage.setItem('gestok_lead', JSON.stringify({ id, ...payload }))
+    localStorage.setItem('gestok_lead', JSON.stringify(payload))
     localStorage.setItem('gestok_lead_id', id)
     await completeLeadFunnel(id)
     return id
   }
-  const { data, error } = await supabase.from('leads').insert(payload).select('id').single()
+  // Leads anônimos podem inserir, mas não ler registros por segurança e LGPD.
+  // O UUID é gerado no cliente para evitar um INSERT ... RETURNING bloqueado pelo RLS.
+  const { error } = await supabase.from('leads').insert(payload)
   if (error) throw error
-  localStorage.setItem('gestok_lead_id', data.id)
-  await completeLeadFunnel(data.id).catch(() => undefined)
-  return data.id as string
+  localStorage.setItem('gestok_lead_id', id)
+  await completeLeadFunnel(id).catch(() => undefined)
+  return id
 }
 
 export async function touchLastSeen() {
