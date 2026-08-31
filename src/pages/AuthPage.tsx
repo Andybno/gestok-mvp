@@ -28,7 +28,7 @@ export function AuthPage({ mode, adminMode = false }: { mode: 'signup' | 'signin
     }
   }, [mode])
 
-  if (user) return <Navigate to={adminMode && profile?.is_admin ? '/admin' : '/app'} replace />
+  if (user && (!adminMode || profile)) return <Navigate to={adminMode && profile?.is_admin ? '/admin' : '/app'} replace />
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -40,7 +40,8 @@ export function AuthPage({ mode, adminMode = false }: { mode: 'signup' | 'signin
         if (result.needsEmailConfirmation) setMessage('Enviamos um link para confirmar seu e-mail. Depois da confirmação, entre na sua conta.')
         else navigate('/app')
       } else {
-        const result = await signIn(email, password)
+        const loginEmail = adminMode && email.trim().toLowerCase() === 'admin' ? 'admin@gestok.local' : email.trim()
+        const result = await signIn(loginEmail, password)
         if (adminMode && !result.isAdmin) {
           await signOut()
           throw new Error('Esta conta não possui permissão administrativa.')
@@ -79,7 +80,7 @@ export function AuthPage({ mode, adminMode = false }: { mode: 'signup' | 'signin
               <label className="field"><span>Nome completo</span><input required value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" placeholder="Seu nome" /></label>
               <label className="field"><span>Nome do estabelecimento</span><input required value={businessName} onChange={(e) => setBusinessName(e.target.value)} autoComplete="organization" placeholder="Sua empresa" /></label>
             </>}
-            <label className="field"><span>E-mail</span><input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="voce@empresa.com" /></label>
+            <label className="field"><span>{adminMode ? 'Usuário ou e-mail' : 'E-mail'}</span><input required type={adminMode ? 'text' : 'email'} value={email} onChange={(e) => setEmail(e.target.value)} autoComplete={adminMode ? 'username' : 'email'} placeholder={adminMode ? 'admin' : 'voce@empresa.com'} /></label>
             <label className="field"><span>Senha {mode === 'signup' && <small>mínimo 8 caracteres</small>}</span><div className="password-field"><input required minLength={8} type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} placeholder="••••••••" /><button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></label>
             {error && <div className="form-error">{error}</div>}
             {message && <div className="form-success">{message}</div>}
