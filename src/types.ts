@@ -34,6 +34,10 @@ export type Profile = {
   is_admin?: boolean
   last_seen_at?: string
   created_at?: string
+  onboarding_status: 'pending_booking' | 'scheduled' | 'completed'
+  onboarding_scheduled_at?: string | null
+  onboarding_completed_at?: string | null
+  onboarding_booking_uid?: string | null
 }
 
 export type LeadFormData = {
@@ -84,6 +88,10 @@ export type AdminUserSummary = {
   last_seen_at: string
   products_count: number
   movements_count: number
+  onboarding_status: Profile['onboarding_status']
+  onboarding_scheduled_at?: string | null
+  onboarding_completed_at?: string | null
+  onboarding_booking_uid?: string | null
 }
 
 export type AdminOverview = {
@@ -91,6 +99,8 @@ export type AdminOverview = {
   completed_leads: number
   accounts_created: number
   product_users: number
+  scheduled_onboardings: number
+  completed_onboardings: number
   question_steps: AdminFunnelStep[]
   users: AdminUserSummary[]
 }

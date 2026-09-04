@@ -9,7 +9,7 @@ type AuthContextValue = {
   profile: Profile | null
   loading: boolean
   isDemo: boolean
-  signUp: (data: { email: string; password: string; fullName: string; businessName: string }) => Promise<{ needsEmailConfirmation: boolean }>
+  signUp: (data: { email: string; password: string; fullName: string; businessName: string }) => Promise<void>
   signIn: (email: string, password: string) => Promise<{ isAdmin: boolean }>
   enterDemo: () => void
   enterAdminDemo: () => void
@@ -30,6 +30,7 @@ function demoProfile(admin = false): Profile {
     subscription_status: 'active',
     is_admin: true,
     last_seen_at: new Date().toISOString(),
+    onboarding_status: 'completed',
   }
   const saved = localStorage.getItem('gestok_demo_profile')
   if (saved) return JSON.parse(saved)
@@ -41,6 +42,7 @@ function demoProfile(admin = false): Profile {
     subscription_status: 'trialing',
     is_admin: false,
     last_seen_at: new Date().toISOString(),
+    onboarding_status: 'pending_booking',
   }
 }
 
@@ -111,13 +113,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           subscription_status: 'trialing',
           is_admin: false,
           last_seen_at: new Date().toISOString(),
+          onboarding_status: 'pending_booking',
         }
         localStorage.setItem(DEMO_AUTH_KEY, 'true')
         localStorage.setItem('gestok_demo_profile', JSON.stringify(nextProfile))
         setIsDemo(true)
         setUser({ id: 'demo-user', email } as User)
         setProfile(nextProfile)
-        return { needsEmailConfirmation: false }
+        return
       }
       const leadId = localStorage.getItem('gestok_lead_id')
       const { data, error } = await supabase.auth.signUp({
@@ -126,7 +129,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         options: { data: { full_name: fullName, business_name: businessName, lead_id: leadId } },
       })
       if (error) throw error
-      return { needsEmailConfirmation: !data.session }
+      if (!data.session || !data.user) throw new Error('Não foi possível iniciar sua sessão automaticamente. Tente criar a conta novamente.')
+      await loadProfile(data.user.id)
     },
     async signIn(email, password) {
       if (!supabase) {

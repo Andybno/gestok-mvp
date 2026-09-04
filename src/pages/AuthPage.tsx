@@ -13,7 +13,6 @@ export function AuthPage({ mode, adminMode = false }: { mode: 'signup' | 'signin
   const [businessName, setBusinessName] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const navigate = useNavigate()
 
@@ -28,17 +27,16 @@ export function AuthPage({ mode, adminMode = false }: { mode: 'signup' | 'signin
     }
   }, [mode])
 
-  if (user && (!adminMode || profile)) return <Navigate to={adminMode && profile?.is_admin ? '/admin' : '/app'} replace />
+  if (user && profile) return <Navigate to={adminMode && profile.is_admin ? '/admin' : profile.is_admin || profile.onboarding_status === 'completed' ? '/app' : '/onboarding'} replace />
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    setLoading(true); setError(''); setMessage('')
+    setLoading(true); setError('')
     try {
       if (mode === 'signup') {
         if (password.length < 8) throw new Error('A senha deve ter pelo menos 8 caracteres.')
-        const result = await signUp({ email, password, fullName, businessName })
-        if (result.needsEmailConfirmation) setMessage('Enviamos um link para confirmar seu e-mail. Depois da confirmação, entre na sua conta.')
-        else navigate('/app')
+        await signUp({ email, password, fullName, businessName })
+        navigate('/onboarding')
       } else {
         const loginEmail = adminMode && email.trim().toLowerCase() === 'admin' ? 'admin@gestok.local' : email.trim()
         const result = await signIn(loginEmail, password)
@@ -64,8 +62,8 @@ export function AuthPage({ mode, adminMode = false }: { mode: 'signup' | 'signin
         <Brand />
         <div className="auth-pitch">
           <span className="kicker light"><Sparkles size={14} /> 7 dias por nossa conta</span>
-          <h1>{adminMode ? 'Decisões melhores começam com uma visão completa.' : mode === 'signup' ? 'Seu estoque começa a trabalhar a seu favor.' : 'Bom ter você de volta.'}</h1>
-          <p>{adminMode ? 'Acompanhe o funil, a atividade e os dados operacionais com acesso restrito.' : mode === 'signup' ? 'Cadastre seus produtos, acompanhe movimentações e teste a contagem por foto sem informar cartão.' : 'Entre para continuar acompanhando sua operação.'}</p>
+          <h1>{adminMode ? 'Decisões melhores começam com uma visão completa.' : mode === 'signup' ? 'Vamos preparar a Gestok para sua operação.' : 'Bom ter você de volta.'}</h1>
+          <p>{adminMode ? 'Acompanhe o funil, a atividade e os dados operacionais com acesso restrito.' : mode === 'signup' ? 'Crie sua conta e escolha um horário para receber um onboarding personalizado antes de acessar a ferramenta.' : 'Entre para continuar acompanhando sua operação.'}</p>
           <div className="auth-benefits"><span><Check /> Cadastro rápido de produtos</span><span><Check /> Alertas de estoque mínimo</span><span><Check /> Entradas e saídas organizadas</span></div>
         </div>
         <div className="auth-mini-dashboard"><div><PackageCheck /><span><small>Itens monitorados</small><strong>148 produtos</strong></span><em>+12</em></div><div><BarChart3 /><span><small>Economia estimada</small><strong>R$ 1.280/mês</strong></span><em>+18%</em></div></div>
@@ -74,7 +72,7 @@ export function AuthPage({ mode, adminMode = false }: { mode: 'signup' | 'signin
 
       <section className="auth-form-panel">
         <div className="auth-form-wrap">
-          <div className="auth-heading"><span className="auth-icon"><LockKeyhole size={20} /></span><h2>{adminMode ? 'Área administrativa' : mode === 'signup' ? 'Crie sua conta' : 'Acesse sua conta'}</h2><p>{adminMode ? 'Somente contas autorizadas podem entrar.' : mode === 'signup' ? 'Seu teste começa assim que a conta for criada.' : 'Use o e-mail cadastrado para entrar.'}</p></div>
+          <div className="auth-heading"><span className="auth-icon"><LockKeyhole size={20} /></span><h2>{adminMode ? 'Área administrativa' : mode === 'signup' ? 'Crie sua conta' : 'Acesse sua conta'}</h2><p>{adminMode ? 'Somente contas autorizadas podem entrar.' : mode === 'signup' ? 'Sem confirmação por e-mail. O próximo passo é agendar seu onboarding.' : 'Use o e-mail cadastrado para entrar.'}</p></div>
           <form onSubmit={submit} className="auth-form">
             {mode === 'signup' && <>
               <label className="field"><span>Nome completo</span><input required value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" placeholder="Seu nome" /></label>
@@ -83,8 +81,7 @@ export function AuthPage({ mode, adminMode = false }: { mode: 'signup' | 'signin
             <label className="field"><span>{adminMode ? 'Usuário ou e-mail' : 'E-mail'}</span><input required type={adminMode ? 'text' : 'email'} value={email} onChange={(e) => setEmail(e.target.value)} autoComplete={adminMode ? 'username' : 'email'} placeholder={adminMode ? 'admin' : 'voce@empresa.com'} /></label>
             <label className="field"><span>Senha {mode === 'signup' && <small>mínimo 8 caracteres</small>}</span><div className="password-field"><input required minLength={8} type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} placeholder="••••••••" /><button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></label>
             {error && <div className="form-error">{error}</div>}
-            {message && <div className="form-success">{message}</div>}
-            <button className="button button-lg auth-submit" disabled={loading}>{loading ? 'Aguarde...' : adminMode ? 'Entrar no painel' : mode === 'signup' ? 'Começar meus 7 dias grátis' : 'Entrar na Gestok'} <ArrowRight size={18} /></button>
+            <button className="button button-lg auth-submit" disabled={loading}>{loading ? 'Aguarde...' : adminMode ? 'Entrar no painel' : mode === 'signup' ? 'Criar conta e agendar onboarding' : 'Entrar na Gestok'} <ArrowRight size={18} /></button>
           </form>
           {!isSupabaseConfigured && <button className="demo-button" type="button" onClick={demo}><Sparkles size={16} /> {adminMode ? 'Explorar painel administrativo' : 'Explorar demonstração'}</button>}
           <p className="auth-switch">{adminMode ? <>Não é administrador? <Link to="/entrar">Acessar a conta</Link></> : mode === 'signup' ? <>Já tem uma conta? <Link to="/entrar">Entrar</Link></> : <>Ainda não começou? <Link to="/diagnostico">Testar grátis</Link> · <Link to="/admin/entrar">Acesso administrativo</Link></>}</p>

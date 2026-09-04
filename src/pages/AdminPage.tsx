@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, BarChart3, Box, ChevronRight, Clock3, Eye, LogOut, PackageCheck, Search, ShieldCheck, UserPlus, X } from 'lucide-react'
+import { Activity, BarChart3, Box, CalendarDays, CheckCircle2, ChevronRight, Clock3, Eye, LogOut, PackageCheck, Search, ShieldCheck, UserPlus, X } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Brand } from '../components/Brand'
 import { useAuth } from '../context/AuthContext'
-import { getAdminOverview, getAdminUserDetail } from '../lib/api'
+import { completeUserOnboarding, getAdminOverview, getAdminUserDetail } from '../lib/api'
 import type { AdminOverview, AdminUserDetail, AdminUserSummary, LeadFormData } from '../types'
 
 const fullDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
@@ -11,6 +11,10 @@ const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL
 
 const statusLabels: Record<AdminUserSummary['subscription_status'], string> = {
   trialing: 'Teste grátis', active: 'Ativo', past_due: 'Pagamento pendente', canceled: 'Cancelado', expired: 'Teste encerrado',
+}
+
+const onboardingLabels: Record<AdminUserSummary['onboarding_status'], string> = {
+  pending_booking: 'Aguardando agenda', scheduled: 'Reunião marcada', completed: 'Acesso liberado',
 }
 
 const answerLabels: Array<[keyof LeadFormData, string]> = [
@@ -41,6 +45,7 @@ export function AdminPage() {
   const [overview, setOverview] = useState<AdminOverview | null>(null)
   const [detail, setDetail] = useState<AdminUserDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [releasing, setReleasing] = useState(false)
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
 
@@ -57,6 +62,18 @@ export function AdminPage() {
     finally { setDetailLoading(false) }
   }
 
+  const releaseUser = async () => {
+    if (!detail) return
+    setReleasing(true); setError('')
+    try {
+      await completeUserOnboarding(detail.user.id)
+      const [nextOverview, nextDetail] = await Promise.all([getAdminOverview(), getAdminUserDetail(detail.user.id)])
+      setOverview(nextOverview); setDetail(nextDetail)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Não foi possível liberar o acesso.')
+    } finally { setReleasing(false) }
+  }
+
   const leave = async () => { await signOut(); navigate('/') }
 
   if (!overview && !error) return <div className="app-loader"><span /><p>Preparando indicadores administrativos...</p></div>
@@ -65,6 +82,8 @@ export function AdminPage() {
   const funnel = overview ? [
     ...overview.question_steps,
     { key: 'account', label: 'Conta criada', count: overview.accounts_created },
+    { key: 'onboarding-scheduled', label: 'Onboarding agendado', count: overview.scheduled_onboardings },
+    { key: 'onboarding-completed', label: 'Acesso liberado', count: overview.completed_onboardings },
     { key: 'product', label: 'Primeiro produto cadastrado', count: overview.product_users },
   ] : []
   const leadConversion = overview ? Math.round((overview.completed_leads / base) * 100) : 0
@@ -114,7 +133,7 @@ export function AdminPage() {
 
           <section className="table-panel admin-users-panel">
             <div className="panel-heading admin-users-heading"><div><h2>Usuários da plataforma</h2><p>Consulte atividade, assinatura e dados operacionais.</p></div><label className="search-box"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar usuário ou estabelecimento" /></label></div>
-            <div className="responsive-table"><table><thead><tr><th>Usuário</th><th>Status</th><th>Produtos</th><th>Movimentações</th><th>Último acesso</th><th>Conta criada</th><th><span className="sr-only">Detalhes</span></th></tr></thead><tbody>{users.map((user) => <tr key={user.id}><td><div className="product-cell"><span>{user.full_name.slice(0, 2).toUpperCase()}</span><div><strong>{user.full_name}</strong><small>{user.business_name} · {user.email}</small></div></div></td><td><span className={`admin-status ${user.subscription_status}`}>{statusLabels[user.subscription_status]}</span></td><td><strong>{user.products_count}</strong></td><td>{user.movements_count}</td><td><span className="last-seen"><span />{lastSeenLabel(user.last_seen_at)}</span></td><td className="muted">{fullDate.format(new Date(user.created_at))}</td><td><button className="admin-view-button" onClick={() => openUser(user.id)}><Eye size={15} /> Visualizar</button></td></tr>)}</tbody></table></div>
+            <div className="responsive-table"><table><thead><tr><th>Usuário</th><th>Onboarding</th><th>Assinatura</th><th>Produtos</th><th>Movimentações</th><th>Último acesso</th><th>Conta criada</th><th><span className="sr-only">Detalhes</span></th></tr></thead><tbody>{users.map((user) => <tr key={user.id}><td><div className="product-cell"><span>{user.full_name.slice(0, 2).toUpperCase()}</span><div><strong>{user.full_name}</strong><small>{user.business_name} · {user.email}</small></div></div></td><td><span className={`onboarding-status ${user.onboarding_status}`}>{onboardingLabels[user.onboarding_status]}</span>{user.onboarding_scheduled_at && <small className="admin-schedule-date">{fullDate.format(new Date(user.onboarding_scheduled_at))}</small>}</td><td><span className={`admin-status ${user.subscription_status}`}>{statusLabels[user.subscription_status]}</span></td><td><strong>{user.products_count}</strong></td><td>{user.movements_count}</td><td><span className="last-seen"><span />{lastSeenLabel(user.last_seen_at)}</span></td><td className="muted">{fullDate.format(new Date(user.created_at))}</td><td><button className="admin-view-button" onClick={() => openUser(user.id)}><Eye size={15} /> Visualizar</button></td></tr>)}</tbody></table></div>
           </section>
         </>}
       </main>
@@ -123,7 +142,9 @@ export function AdminPage() {
         {detailLoading ? <div className="content-loader">Carregando dados do usuário...</div> : detail && <>
           <div className="admin-drawer-header"><div><span className="avatar">{detail.user.full_name.slice(0, 1)}</span><span><h2>{detail.user.full_name}</h2><p>{detail.user.business_name} · {detail.user.email}</p></span></div><button className="icon-button" onClick={() => setDetail(null)} aria-label="Fechar"><X size={19} /></button></div>
           <div className="admin-drawer-body">
-            <div className="admin-detail-summary"><div><small>Último acesso</small><strong>{lastSeenLabel(detail.user.last_seen_at)}</strong><span>{fullDate.format(new Date(detail.user.last_seen_at))}</span></div><div><small>Status</small><strong>{statusLabels[detail.user.subscription_status]}</strong><span>Desde {fullDate.format(new Date(detail.user.created_at))}</span></div><div><small>Uso do estoque</small><strong>{detail.user.products_count} produtos</strong><span>{detail.user.movements_count} movimentações</span></div></div>
+            <div className="admin-detail-summary"><div><small>Último acesso</small><strong>{lastSeenLabel(detail.user.last_seen_at)}</strong><span>{fullDate.format(new Date(detail.user.last_seen_at))}</span></div><div><small>Assinatura</small><strong>{statusLabels[detail.user.subscription_status]}</strong><span>Desde {fullDate.format(new Date(detail.user.created_at))}</span></div><div><small>Uso do estoque</small><strong>{detail.user.products_count} produtos</strong><span>{detail.user.movements_count} movimentações</span></div><div><small>Onboarding</small><strong>{onboardingLabels[detail.user.onboarding_status]}</strong><span>{detail.user.onboarding_scheduled_at ? fullDate.format(new Date(detail.user.onboarding_scheduled_at)) : 'Horário ainda não escolhido'}</span></div></div>
+
+            <section className={`admin-onboarding-action ${detail.user.onboarding_status}`}><span><CalendarDays /></span><div><small>Liberação da ferramenta</small><strong>{detail.user.onboarding_status === 'completed' ? 'Acesso já liberado' : detail.user.onboarding_status === 'scheduled' ? 'Reunião de onboarding agendada' : 'Aguardando agendamento do usuário'}</strong><p>{detail.user.onboarding_status === 'completed' ? 'O usuário já pode acessar todas as funções da Gestok.' : detail.user.onboarding_scheduled_at ? `Horário: ${fullDate.format(new Date(detail.user.onboarding_scheduled_at))}. Libere o acesso depois da reunião.` : 'Quando o usuário escolher um horário, ele aparecerá aqui.'}</p></div>{detail.user.onboarding_status !== 'completed' && <button type="button" className="button button-sm" onClick={releaseUser} disabled={releasing}>{releasing ? 'Liberando...' : <><CheckCircle2 size={15} /> Liberar acesso</>}</button>}</section>
 
             <section className="admin-detail-section"><h3>Respostas do diagnóstico</h3>{detail.lead ? <div className="admin-answer-grid">{answerLabels.map(([key, label]) => <div key={key}><small>{label}</small><strong>{answerValue(detail.lead?.[key])}</strong></div>)}</div> : <p className="admin-empty-copy">Este usuário não possui diagnóstico vinculado.</p>}</section>
 

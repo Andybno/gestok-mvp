@@ -6,8 +6,9 @@ MVP de uma plataforma de estoque para restaurantes, deliveries, cafeterias, pada
 
 - Landing page responsiva e diagnóstico conversacional em até dez perguntas.
 - Consentimento necessário separado do consentimento opcional de marketing, com versão e data da política.
-- Cadastro e login com Supabase Auth; modo demonstração quando não há ambiente configurado.
-- Teste gratuito de 7 dias iniciado por trigger no cadastro.
+- Cadastro e login imediato com Supabase Auth, sem confirmação por e-mail; modo demonstração quando não há ambiente configurado.
+- Agendamento de onboarding obrigatório pelo Cal.com incorporado à Gestok, com Google Meet, evento no calendário compartilhado `Gestok | Onboarding` e liberação posterior pelo administrador.
+- Teste gratuito de 7 dias iniciado somente quando o administrador conclui o onboarding.
 - Produtos, estoque mínimo, custo e validade.
 - Entradas, saídas e ajustes atômicos no banco, com proteção contra saldo negativo.
 - Contagem beta por foto em Edge Function com OpenAI Responses API e Structured Outputs.
@@ -36,7 +37,7 @@ Sem as variáveis do Supabase, o botão **Explorar demonstração** habilita dad
 ## Configurar Supabase
 
 1. Crie um projeto e execute as migrations em `supabase/migrations` na ordem, ou use `supabase db push` com o projeto vinculado.
-2. Em Authentication, configure o URL do site e os URLs de redirecionamento do domínio final.
+2. Em Authentication, configure o URL do site, os URLs de redirecionamento do domínio final e desative **Confirm email** para liberar a sessão imediatamente após o cadastro.
 3. Publique as quatro funções:
 
 ```bash

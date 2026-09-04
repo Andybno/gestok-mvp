@@ -10,13 +10,25 @@ import { MovementsPage } from './pages/MovementsPage'
 import { ScanPage } from './pages/ScanPage'
 import { BillingPage } from './pages/BillingPage'
 import { AdminPage } from './pages/AdminPage'
+import { OnboardingPage } from './pages/OnboardingPage'
 import { PrivacyPage, TermsPage } from './pages/LegalPages'
 import './App.css'
 
 function ProtectedRoute() {
-  const { user, loading } = useAuth()
-  if (loading) return <div className="app-loader"><span /><p>Preparando sua operação...</p></div>
-  return user ? <DashboardLayout /> : <Navigate to="/entrar" replace />
+  const { user, profile, loading } = useAuth()
+  if (loading || (user && !profile)) return <div className="app-loader"><span /><p>Preparando sua operação...</p></div>
+  if (!user) return <Navigate to="/entrar" replace />
+  if (!profile?.is_admin && profile?.onboarding_status !== 'completed') return <Navigate to="/onboarding" replace />
+  return <DashboardLayout />
+}
+
+function ProtectedOnboardingRoute() {
+  const { user, profile, loading } = useAuth()
+  if (loading || (user && !profile)) return <div className="app-loader"><span /><p>Preparando seu onboarding...</p></div>
+  if (!user) return <Navigate to="/entrar" replace />
+  if (profile?.is_admin) return <Navigate to="/admin" replace />
+  if (profile?.onboarding_status === 'completed') return <Navigate to="/app" replace />
+  return <OnboardingPage />
 }
 
 function ProtectedAdminRoute() {
@@ -35,6 +47,7 @@ export default function App() {
       <Route path="/entrar" element={<AuthPage mode="signin" />} />
       <Route path="/admin/entrar" element={<AuthPage mode="signin" adminMode />} />
       <Route path="/admin" element={<ProtectedAdminRoute />} />
+      <Route path="/onboarding" element={<ProtectedOnboardingRoute />} />
       <Route path="/privacidade" element={<PrivacyPage />} />
       <Route path="/termos" element={<TermsPage />} />
       <Route path="/app" element={<ProtectedRoute />}>

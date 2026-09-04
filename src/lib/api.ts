@@ -68,6 +68,22 @@ export async function touchLastSeen() {
   if (error) throw error
 }
 
+export async function scheduleOnboarding(scheduledAt: string, bookingUid?: string) {
+  if (!supabase) {
+    const saved = JSON.parse(localStorage.getItem('gestok_demo_profile') || '{}')
+    localStorage.setItem('gestok_demo_profile', JSON.stringify({ ...saved, onboarding_status: 'scheduled', onboarding_scheduled_at: scheduledAt, onboarding_booking_uid: bookingUid || null }))
+    return
+  }
+  const { error } = await supabase.rpc('schedule_onboarding', { p_scheduled_at: scheduledAt, p_booking_uid: bookingUid || null })
+  if (error) throw error
+}
+
+export async function completeUserOnboarding(userId: string) {
+  if (!supabase) return
+  const { error } = await supabase.rpc('admin_complete_onboarding', { p_user_id: userId })
+  if (error) throw error
+}
+
 export async function getAdminOverview(): Promise<AdminOverview> {
   if (!supabase) return demoAdminOverview()
   const { data, error } = await supabase.rpc('admin_overview')
