@@ -45,7 +45,10 @@ supabase functions deploy create-checkout-session
 supabase functions deploy create-customer-portal
 supabase functions deploy stripe-webhook --no-verify-jwt
 supabase functions deploy analyze-inventory-image
+supabase functions deploy create-account
 ```
+
+A função `create-account` cria o usuário já confirmado no servidor e inicia o fluxo sem depender do envio de e-mail do Supabase. O navegador nunca recebe a chave `service_role`.
 
 4. Configure os segredos das funções — nunca use o prefixo `VITE_` para segredos:
 

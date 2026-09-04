@@ -123,13 +123,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
       const leadId = localStorage.getItem('gestok_lead_id')
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: fullName, business_name: businessName, lead_id: leadId } },
+      const { error: createError } = await supabase.functions.invoke('create-account', {
+        body: { email, password, fullName, businessName, leadId },
       })
-      if (error) throw error
-      if (!data.session || !data.user) throw new Error('Não foi possível iniciar sua sessão automaticamente. Tente criar a conta novamente.')
+      if (createError) {
+        let message = 'Não foi possível criar sua conta agora. Tente novamente em instantes.'
+        const response = 'context' in createError && createError.context instanceof Response ? createError.context : null
+        if (response) {
+          const payload = await response.clone().json().catch(() => null) as { error?: string } | null
+          if (payload?.error) message = payload.error
+        }
+        throw new Error(message)
+      }
+
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password })
+      if (signInError || !data.user) throw new Error('Sua conta foi criada, mas não foi possível entrar automaticamente. Use a tela de login para continuar.')
       await loadProfile(data.user.id)
     },
     async signIn(email, password) {
