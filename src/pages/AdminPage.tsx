@@ -20,7 +20,7 @@ const onboardingLabels: Record<AdminUserSummary['onboarding_status'], string> = 
 const answerLabels: Array<[keyof LeadFormData, string]> = [
   ['operation_type', 'Tipo de operação'], ['sales_channels', 'Canais de venda'], ['units_count', 'Número de unidades'],
   ['sku_count', 'Itens no estoque'], ['inventory_method', 'Controle atual'], ['main_challenge', 'Maior desafio'],
-  ['full_name', 'Nome'], ['business_name', 'Estabelecimento'], ['email', 'E-mail'], ['marketing_consent', 'Marketing'],
+  ['whatsapp', 'Telefone'], ['email', 'E-mail'], ['marketing_consent', 'Marketing'],
 ]
 
 function lastSeenLabel(value: string) {

@@ -12,7 +12,7 @@ type Question = {
   eyebrow: string
   title: string
   subtitle: string
-  type: 'choice' | 'text' | 'email' | 'consent'
+  type: 'choice' | 'text' | 'email' | 'tel' | 'consent'
   placeholder?: string
   options?: Option[]
 }
@@ -48,8 +48,7 @@ const questions: Question[] = [
     { value: 'Compras em excesso', label: 'Compras em excesso', detail: 'Dinheiro parado em produtos sem giro' },
     { value: 'Diferenças e falta de visibilidade', label: 'Diferenças e falta de visibilidade', detail: 'O físico não bate e é difícil acompanhar saldos' },
   ] },
-  { id: 'full_name', eyebrow: 'Quase lá', title: 'Qual seu nome?', subtitle: 'Use seu nome para personalizar sua conta.', type: 'text', placeholder: 'Digite seu nome completo' },
-  { id: 'business_name', eyebrow: 'Seu estabelecimento', title: 'Qual é o nome do negócio?', subtitle: 'É assim que ele aparecerá dentro da Gestok.', type: 'text', placeholder: 'Ex.: Restaurante Sabor da Casa' },
+  { id: 'whatsapp', eyebrow: 'Contato', title: 'Qual é o seu número de telefone?', subtitle: 'Inclua o DDD para entrarmos em contato sobre o diagnóstico e o onboarding.', type: 'tel', placeholder: '(11) 99999-9999' },
   { id: 'email', eyebrow: 'Acesso à conta', title: 'Qual é o seu melhor e-mail?', subtitle: 'Ele será usado para criar sua conta e enviar informações do teste.', type: 'email', placeholder: 'voce@empresa.com' },
   { id: 'contact_consent', eyebrow: 'Privacidade', title: 'Como podemos usar seus dados?', subtitle: 'Escolha com transparência antes de criar sua conta.', type: 'consent' },
 ]
@@ -60,6 +59,14 @@ const channelValues: Record<string, string[]> = {
   presencial_ifood: ['Atendimento presencial', 'iFood / marketplaces'],
   delivery_proprio: ['Delivery próprio'],
   varios: ['Atendimento presencial', 'iFood / marketplaces', 'Delivery próprio'],
+}
+
+function formatPhone(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 11)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
 }
 
 const initialData: LeadFormData = {
@@ -90,6 +97,7 @@ export function LeadFormPage() {
   const isValid = () => {
     const value = data[question.id]
     if (question.id === 'email') return /\S+@\S+\.\S+/.test(data.email)
+    if (question.id === 'whatsapp') return data.whatsapp.replace(/\D/g, '').length >= 10
     if (question.id === 'sales_channels') return data.sales_channels.length > 0
     if (question.type === 'consent') return data.contact_consent
     return typeof value === 'string' ? value.trim().length > 0 : Boolean(value)
@@ -132,7 +140,7 @@ export function LeadFormPage() {
     setSubmitting(true); setError('')
     try {
       await saveLead(data)
-      localStorage.setItem('gestok_signup_prefill', JSON.stringify({ email: data.email, fullName: data.full_name, businessName: data.business_name }))
+      localStorage.setItem('gestok_signup_prefill', JSON.stringify({ email: data.email }))
       navigate('/cadastro', { state: { fromLead: true } })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível enviar. Tente novamente.')
@@ -160,11 +168,11 @@ export function LeadFormPage() {
             {question.options!.map((option) => <button type="button" key={option.value} className={selectedValue === option.value ? 'selected' : ''} aria-pressed={selectedValue === option.value} onClick={() => choose(option.value)} disabled={transitioning}><span className="choice-radio">{selectedValue === option.value && <Check size={14} />}</span><span><strong>{option.label}</strong>{option.detail && <small>{option.detail}</small>}</span><ArrowRight className="choice-arrow" size={17} /></button>)}
           </div>}
 
-          {['text','email'].includes(question.type) && <div className="single-answer-field"><input autoFocus type={question.type} value={String(data[question.id])} onChange={(event) => update(question.id, event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); if (isValid()) void trackLeadAnswer(question.id, index + 1).catch(() => undefined).finally(advance); else setError('Preencha esta resposta para continuar.') } }} enterKeyHint="next" placeholder={question.placeholder} autoComplete={question.id === 'full_name' ? 'name' : question.id === 'business_name' ? 'organization' : question.id === 'email' ? 'email' : 'off'} /><small>Pressione Enter ou use o botão para continuar</small></div>}
+          {['text','email','tel'].includes(question.type) && <div className="single-answer-field"><input autoFocus type={question.type} inputMode={question.id === 'whatsapp' ? 'tel' : undefined} value={String(data[question.id])} onChange={(event) => update(question.id, question.id === 'whatsapp' ? formatPhone(event.target.value) : event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); if (isValid()) void trackLeadAnswer(question.id, index + 1).catch(() => undefined).finally(advance); else setError(question.id === 'whatsapp' ? 'Informe um telefone válido com DDD.' : 'Preencha esta resposta para continuar.') } }} enterKeyHint="next" placeholder={question.placeholder} autoComplete={question.id === 'whatsapp' ? 'tel' : question.id === 'email' ? 'email' : 'off'} /><small>Pressione Enter ou use o botão para continuar</small></div>}
 
           {question.type === 'consent' && <div className="consent-block conversation-consent">
             <div className="privacy-summary"><LockKeyhole size={21} /><div><strong>Você mantém o controle</strong><p>As respostas serão usadas para criar sua experiência, atender ao teste e entender o perfil das operações interessadas.</p></div></div>
-            <label className="check-field"><input type="checkbox" checked={data.contact_consent} onChange={(event) => update('contact_consent', event.target.checked)} /><span><strong>Concordo com o tratamento para atender este pedido *</strong>Autorizo o armazenamento das respostas e o contato por e-mail sobre diagnóstico, teste e contratação. Li a <Link to="/privacidade" target="_blank">Política de Privacidade</Link>.</span></label>
+            <label className="check-field"><input type="checkbox" checked={data.contact_consent} onChange={(event) => update('contact_consent', event.target.checked)} /><span><strong>Concordo com o tratamento para atender este pedido *</strong>Autorizo o armazenamento das respostas e o contato por e-mail ou telefone sobre diagnóstico, teste e contratação. Li a <Link to="/privacidade" target="_blank">Política de Privacidade</Link>.</span></label>
             <label className="check-field"><input type="checkbox" checked={data.marketing_consent} onChange={(event) => update('marketing_consent', event.target.checked)} /><span><strong>Quero receber conteúdos e novidades (opcional)</strong>Autorizo comunicações de marketing da Gestok. Posso cancelar a qualquer momento.</span></label>
             <p className="legal-note">O aceite de marketing não é necessário para usar o teste. Veja também os <Link to="/termos" target="_blank">Termos de Uso</Link>.</p>
           </div>}
