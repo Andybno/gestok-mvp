@@ -14,6 +14,8 @@ declare global {
 
 const DEFAULT_PIXEL_ID = '1033788426162119'
 const LEAD_TRACKING_KEY = 'gestok_meta_lead_submission'
+const DIAGNOSTIC_START_KEY = 'gestok_meta_diagnostic_started'
+const SCHEDULE_START_KEY = 'gestok_meta_schedule_started'
 const BOOKING_TRACKING_KEY = 'gestok_meta_schedule_booking'
 const initializedPixels = new Set<string>()
 
@@ -58,6 +60,19 @@ export function trackMetaPageView() {
   ensurePixel()?.('track', 'PageView')
 }
 
+export function trackMetaDiagnosticStart() {
+  if (sessionStorage.getItem(DIAGNOSTIC_START_KEY)) return
+
+  const fbq = ensurePixel()
+  if (!fbq) return
+
+  fbq('trackCustom', 'DiagnosticStart', {
+    content_name: 'Diagnóstico de estoque iniciado',
+    content_category: 'lead_qualification',
+  })
+  sessionStorage.setItem(DIAGNOSTIC_START_KEY, new Date().toISOString())
+}
+
 export function trackMetaDiagnosticLead(leadId?: string) {
   const leadKey = leadId || 'diagnostic-completed'
   // The diagnostic and account creation are two checkpoints for the same lead.
@@ -73,6 +88,20 @@ export function trackMetaDiagnosticLead(leadId?: string) {
     content_category: 'lead_qualification',
   })
   localStorage.setItem(LEAD_TRACKING_KEY, leadKey)
+}
+
+export function trackMetaScheduleStart(leadId?: string) {
+  const scheduleKey = leadId || 'diagnostic-schedule'
+  if (sessionStorage.getItem(SCHEDULE_START_KEY) === scheduleKey) return
+
+  const fbq = ensurePixel()
+  if (!fbq) return
+
+  fbq('trackCustom', 'ScheduleStart', {
+    content_name: 'Agendamento da demonstração iniciado',
+    content_category: 'sales_demo',
+  })
+  sessionStorage.setItem(SCHEDULE_START_KEY, scheduleKey)
 }
 
 export function trackMetaOnboardingBooked(bookingUid?: string) {

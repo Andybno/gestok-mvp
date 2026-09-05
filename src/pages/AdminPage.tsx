@@ -18,10 +18,22 @@ const onboardingLabels: Record<AdminUserSummary['onboarding_status'], string> = 
 }
 
 const answerLabels: Array<[keyof LeadFormData, string]> = [
-  ['operation_type', 'Tipo de operação'], ['sales_channels', 'Canais de venda'], ['units_count', 'Número de unidades'],
-  ['sku_count', 'Itens no estoque'], ['inventory_method', 'Controle atual'], ['main_challenge', 'Maior desafio'],
-  ['whatsapp', 'Telefone'], ['email', 'E-mail'], ['marketing_consent', 'Marketing'],
+  ['operation_type', 'Tipo de operação'], ['employees_count', 'Tamanho da equipe'], ['inventory_method', 'Controle atual'],
+  ['main_challenge', 'Principal problema'], ['inventory_frequency', 'Frequência do inventário'], ['role', 'Canal de contato preferido'],
+  ['estimated_loss', 'Melhor período para demonstração'], ['whatsapp', 'Telefone'], ['email', 'E-mail'], ['marketing_consent', 'Marketing'],
 ]
+
+const funnelLabels: Record<string, string> = {
+  operation_type: 'Tipo de operação',
+  units_count: 'Tamanho da equipe',
+  inventory_method: 'Controle atual',
+  main_challenge: 'Principal problema',
+  sku_count: 'Frequência do inventário',
+  sales_channels: 'Canal de contato',
+  whatsapp: 'Período da demonstração',
+  email: 'Telefone',
+  contact_consent: 'E-mail e consentimento LGPD',
+}
 
 function lastSeenLabel(value: string) {
   const diffMinutes = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 60000))
@@ -80,7 +92,7 @@ export function AdminPage() {
 
   const base = Math.max(overview?.started || 0, 1)
   const funnel = overview ? [
-    ...overview.question_steps,
+    ...overview.question_steps.map((step) => ({ ...step, label: funnelLabels[step.key] || step.label })),
     { key: 'account', label: 'Conta criada', count: overview.accounts_created },
     { key: 'onboarding-scheduled', label: 'Onboarding agendado', count: overview.scheduled_onboardings },
     { key: 'onboarding-completed', label: 'Acesso liberado', count: overview.completed_onboardings },
