@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { Brand } from '../components/Brand'
 import { useAuth } from '../context/AuthContext'
 import { scheduleOnboarding } from '../lib/api'
+import { trackMetaOnboardingBooked } from '../lib/metaPixel'
 
 const CAL_NAMESPACE = 'gestokOnboarding'
 const CAL_LINK = 'gestokbr/onboarding'
@@ -94,6 +95,7 @@ export function OnboardingPage() {
       setError('')
       try {
         await scheduleOnboarding(startTime, bookingUid)
+        trackMetaOnboardingBooked(bookingUid)
         await refreshProfile()
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : 'A reunião foi criada, mas não conseguimos atualizar o status da conta.')
