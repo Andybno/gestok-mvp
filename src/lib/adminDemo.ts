@@ -4,11 +4,11 @@ const ago = (days: number, hours = 0) => new Date(Date.now() - (days * 24 + hour
 const ahead = (days: number, hours = 0) => new Date(Date.now() + (days * 24 + hours) * 3600000).toISOString()
 
 const users: AdminUserSummary[] = [
-  { id: 'user-1', email: 'ana@bistrodemo.com', full_name: 'Ana Souza', business_name: 'Bistrô da Ana', subscription_status: 'trialing', created_at: ago(2), last_seen_at: ago(0, 1), products_count: 0, movements_count: 0, onboarding_status: 'scheduled', onboarding_scheduled_at: ahead(1, 2) },
-  { id: 'user-2', email: 'carlos@pizzariademo.com', full_name: 'Carlos Lima', business_name: 'Pizzaria Central', subscription_status: 'active', created_at: ago(18), last_seen_at: ago(0, 5), products_count: 18, movements_count: 47, onboarding_status: 'completed', onboarding_completed_at: ago(16) },
-  { id: 'user-3', email: 'marina@cafedemo.com', full_name: 'Marina Alves', business_name: 'Café do Parque', subscription_status: 'trialing', created_at: ago(5), last_seen_at: ago(1, 3), products_count: 0, movements_count: 0, onboarding_status: 'pending_booking' },
-  { id: 'user-4', email: 'joao@deliverydemo.com', full_name: 'João Santos', business_name: 'Prato Rápido Delivery', subscription_status: 'past_due', created_at: ago(34), last_seen_at: ago(8), products_count: 24, movements_count: 83, onboarding_status: 'completed', onboarding_completed_at: ago(31) },
-  { id: 'user-5', email: 'beatriz@padariademo.com', full_name: 'Beatriz Costa', business_name: 'Padaria Aurora', subscription_status: 'expired', created_at: ago(12), last_seen_at: ago(12), products_count: 0, movements_count: 0, onboarding_status: 'scheduled', onboarding_scheduled_at: ahead(3) },
+  { id: 'user-1', email: 'ana@bistrodemo.com', full_name: 'Ana Souza', business_name: 'Bistrô da Ana', subscription_status: 'trialing', created_at: ago(2), last_seen_at: ago(0, 1), products_count: 0, movements_count: 0, onboarding_status: 'scheduled', onboarding_scheduled_at: ahead(1, 2), excluded_from_analytics: false },
+  { id: 'user-2', email: 'carlos@pizzariademo.com', full_name: 'Carlos Lima', business_name: 'Pizzaria Central', subscription_status: 'active', created_at: ago(18), last_seen_at: ago(0, 5), products_count: 18, movements_count: 47, onboarding_status: 'completed', onboarding_completed_at: ago(16), excluded_from_analytics: false },
+  { id: 'user-3', email: 'marina@cafedemo.com', full_name: 'Marina Alves', business_name: 'Café do Parque', subscription_status: 'trialing', created_at: ago(5), last_seen_at: ago(1, 3), products_count: 0, movements_count: 0, onboarding_status: 'pending_booking', excluded_from_analytics: false },
+  { id: 'user-4', email: 'joao@deliverydemo.com', full_name: 'João Santos', business_name: 'Prato Rápido Delivery', subscription_status: 'past_due', created_at: ago(34), last_seen_at: ago(8), products_count: 24, movements_count: 83, onboarding_status: 'completed', onboarding_completed_at: ago(31), excluded_from_analytics: false },
+  { id: 'user-5', email: 'beatriz@padariademo.com', full_name: 'Beatriz Costa', business_name: 'Padaria Aurora', subscription_status: 'expired', created_at: ago(12), last_seen_at: ago(12), products_count: 0, movements_count: 0, onboarding_status: 'scheduled', onboarding_scheduled_at: ahead(3), excluded_from_analytics: false },
 ]
 
 const productNames = ['Filé de frango', 'Arroz branco', 'Tomate italiano', 'Azeite extra virgem', 'Queijo muçarela']
@@ -50,6 +50,7 @@ export function demoAdminOverview(): AdminOverview {
     product_users: 39,
     scheduled_onboardings: 46,
     completed_onboardings: 39,
+    ad_metrics: { reach: 1240, impressions: 1678, link_clicks: 96, site_visits: 83, updated_at: new Date().toISOString() },
     question_steps: [
       { key: 'operation_type', label: 'Tipo de operação', count: 184 },
       { key: 'sales_channels', label: 'Canais de venda', count: 171 },

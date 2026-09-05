@@ -92,6 +92,15 @@ export type AdminUserSummary = {
   onboarding_scheduled_at?: string | null
   onboarding_completed_at?: string | null
   onboarding_booking_uid?: string | null
+  excluded_from_analytics: boolean
+}
+
+export type AdminAdMetrics = {
+  reach: number
+  impressions: number
+  link_clicks: number
+  site_visits: number
+  updated_at?: string | null
 }
 
 export type AdminOverview = {
@@ -102,6 +111,7 @@ export type AdminOverview = {
   scheduled_onboardings: number
   completed_onboardings: number
   question_steps: AdminFunnelStep[]
+  ad_metrics: AdminAdMetrics
   users: AdminUserSummary[]
 }
 

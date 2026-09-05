@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { ArrowLeft, ArrowRight, CalendarDays, Check, CheckCircle2, ChevronLeft, Clock3, LockKeyhole, ShieldCheck, Sparkles } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Brand } from '../components/Brand'
-import { saveLead, trackLeadAnswer } from '../lib/api'
+import { saveLead, trackAdLandingVisit, trackLeadAnswer } from '../lib/api'
 import { trackMetaDiagnosticLead, trackMetaDiagnosticStart, trackMetaOnboardingBooked, trackMetaScheduleStart } from '../lib/metaPixel'
 import type { LeadFormData } from '../types'
 
@@ -149,6 +149,10 @@ export function LeadFormPage() {
 
   const selectedValue = useMemo(() => String(data[question.id] ?? ''), [data, question.id])
   const update = (key: QuestionId, value: string | boolean | string[]) => setData((current) => ({ ...current, [key]: value }))
+
+  useEffect(() => {
+    void trackAdLandingVisit().catch(() => undefined)
+  }, [])
 
   useEffect(() => {
     if (!bookingStarted || bookingConfirmed || calMounted.current) return

@@ -27,6 +27,31 @@ export async function trackLeadAnswer(questionKey: string, questionNumber: numbe
   if (error) throw error
 }
 
+export async function trackAdLandingVisit() {
+  const sessionId = funnelSessionId()
+  const params = new URLSearchParams(window.location.search)
+  const source = params.get('utm_source')
+  const medium = params.get('utm_medium')
+  const campaign = params.get('utm_campaign')
+  const adset = params.get('utm_term')
+  const ad = params.get('utm_content')
+  const metaAttributed = source?.toLowerCase() === 'meta'
+    || medium?.toLowerCase() === 'paid_social'
+    || params.has('fbclid')
+
+  if (!supabase) return
+  const { error } = await supabase.rpc('track_ad_landing_visit', {
+    p_session_id: sessionId,
+    p_source: source,
+    p_medium: medium,
+    p_campaign: campaign,
+    p_adset: adset,
+    p_ad: ad,
+    p_meta_attributed: metaAttributed,
+  })
+  if (error) throw error
+}
+
 async function completeLeadFunnel(leadId: string) {
   const sessionId = funnelSessionId()
   if (!supabase) {
@@ -81,6 +106,22 @@ export async function scheduleOnboarding(scheduledAt: string, bookingUid?: strin
 export async function completeUserOnboarding(userId: string) {
   if (!supabase) return
   const { error } = await supabase.rpc('admin_complete_onboarding', { p_user_id: userId })
+  if (error) throw error
+}
+
+export async function setAdminUserAnalyticsExclusion(userId: string, excluded: boolean) {
+  if (!supabase) return
+  const { error } = await supabase.rpc('admin_set_user_analytics_exclusion', { p_user_id: userId, p_excluded: excluded })
+  if (error) throw error
+}
+
+export async function setAdminAdCampaignMetrics(reach: number, impressions: number, linkClicks: number) {
+  if (!supabase) return
+  const { error } = await supabase.rpc('admin_set_ad_campaign_metrics', {
+    p_reach: reach,
+    p_impressions: impressions,
+    p_link_clicks: linkClicks,
+  })
   if (error) throw error
 }
 
