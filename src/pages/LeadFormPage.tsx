@@ -48,7 +48,7 @@ const questions: Question[] = [
     { value: 'Compras em excesso', label: 'Compras em excesso', detail: 'Dinheiro parado em produtos sem giro' },
     { value: 'Diferenças e falta de visibilidade', label: 'Diferenças e falta de visibilidade', detail: 'O físico não bate e é difícil acompanhar saldos' },
   ] },
-  { id: 'full_name', eyebrow: 'Quase lá', title: 'Como podemos chamar você?', subtitle: 'Use seu nome para personalizar sua conta.', type: 'text', placeholder: 'Digite seu nome completo' },
+  { id: 'full_name', eyebrow: 'Quase lá', title: 'Qual seu nome?', subtitle: 'Use seu nome para personalizar sua conta.', type: 'text', placeholder: 'Digite seu nome completo' },
   { id: 'business_name', eyebrow: 'Seu estabelecimento', title: 'Qual é o nome do negócio?', subtitle: 'É assim que ele aparecerá dentro da Gestok.', type: 'text', placeholder: 'Ex.: Restaurante Sabor da Casa' },
   { id: 'email', eyebrow: 'Acesso à conta', title: 'Qual é o seu melhor e-mail?', subtitle: 'Ele será usado para criar sua conta e enviar informações do teste.', type: 'email', placeholder: 'voce@empresa.com' },
   { id: 'contact_consent', eyebrow: 'Privacidade', title: 'Como podemos usar seus dados?', subtitle: 'Escolha com transparência antes de criar sua conta.', type: 'consent' },
