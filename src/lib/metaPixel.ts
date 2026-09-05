@@ -13,6 +13,7 @@ declare global {
 }
 
 const DEFAULT_PIXEL_ID = '1033788426162119'
+const LEAD_TRACKING_KEY = 'gestok_meta_lead_submission'
 const BOOKING_TRACKING_KEY = 'gestok_meta_schedule_booking'
 const initializedPixels = new Set<string>()
 
@@ -55,6 +56,20 @@ function ensurePixel() {
 
 export function trackMetaPageView() {
   ensurePixel()?.('track', 'PageView')
+}
+
+export function trackMetaDiagnosticLead(leadId?: string) {
+  const leadKey = leadId || 'diagnostic-completed'
+  if (localStorage.getItem(LEAD_TRACKING_KEY) === leadKey) return
+
+  const fbq = ensurePixel()
+  if (!fbq) return
+
+  fbq('track', 'Lead', {
+    content_name: 'Diagnóstico de estoque concluído',
+    content_category: 'lead_qualification',
+  })
+  localStorage.setItem(LEAD_TRACKING_KEY, leadKey)
 }
 
 export function trackMetaOnboardingBooked(bookingUid?: string) {

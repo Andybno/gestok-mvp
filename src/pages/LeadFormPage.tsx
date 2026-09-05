@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, Check, ChevronLeft, Clock3, LockKeyhole, ShieldC
 import { Link, useNavigate } from 'react-router-dom'
 import { Brand } from '../components/Brand'
 import { saveLead, trackLeadAnswer } from '../lib/api'
+import { trackMetaDiagnosticLead } from '../lib/metaPixel'
 import type { LeadFormData } from '../types'
 
 type QuestionId = keyof LeadFormData
@@ -139,7 +140,8 @@ export function LeadFormPage() {
     if (index < questions.length - 1) return advance()
     setSubmitting(true); setError('')
     try {
-      await saveLead(data)
+      const leadId = await saveLead(data)
+      trackMetaDiagnosticLead(leadId)
       localStorage.setItem('gestok_signup_prefill', JSON.stringify({ email: data.email }))
       navigate('/cadastro', { state: { fromLead: true } })
     } catch (cause) {
