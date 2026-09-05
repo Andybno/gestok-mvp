@@ -13,7 +13,7 @@ declare global {
 }
 
 const DEFAULT_PIXEL_ID = '1033788426162119'
-const BOOKING_TRACKING_KEY = 'gestok_meta_lead_booking'
+const BOOKING_TRACKING_KEY = 'gestok_meta_schedule_booking'
 const initializedPixels = new Set<string>()
 
 function getPixelId() {
@@ -64,6 +64,6 @@ export function trackMetaOnboardingBooked(bookingUid?: string) {
   const fbq = ensurePixel()
   if (!fbq) return
 
-  fbq('track', 'Lead', { content_name: 'Reunião de onboarding agendada' })
+  fbq('track', 'Schedule', { content_name: 'Reunião de onboarding agendada' })
   localStorage.setItem(BOOKING_TRACKING_KEY, bookingKey)
 }
