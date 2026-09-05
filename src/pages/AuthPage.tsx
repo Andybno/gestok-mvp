@@ -3,6 +3,7 @@ import { ArrowRight, BarChart3, Check, Eye, EyeOff, LockKeyhole, PackageCheck, S
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { Brand } from '../components/Brand'
 import { useAuth } from '../context/AuthContext'
+import { trackMetaDiagnosticLead } from '../lib/metaPixel'
 import { isSupabaseConfigured } from '../lib/supabase'
 
 export function AuthPage({ mode, adminMode = false }: { mode: 'signup' | 'signin'; adminMode?: boolean }) {
@@ -36,6 +37,7 @@ export function AuthPage({ mode, adminMode = false }: { mode: 'signup' | 'signin
       if (mode === 'signup') {
         if (password.length < 8) throw new Error('A senha deve ter pelo menos 8 caracteres.')
         await signUp({ email, password, fullName, businessName })
+        trackMetaDiagnosticLead()
         navigate('/onboarding')
       } else {
         const loginEmail = adminMode && email.trim().toLowerCase() === 'admin' ? 'admin@gestok.local' : email.trim()

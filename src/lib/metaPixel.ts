@@ -60,7 +60,10 @@ export function trackMetaPageView() {
 
 export function trackMetaDiagnosticLead(leadId?: string) {
   const leadKey = leadId || 'diagnostic-completed'
-  if (localStorage.getItem(LEAD_TRACKING_KEY) === leadKey) return
+  // The diagnostic and account creation are two checkpoints for the same lead.
+  // Whichever succeeds first records the event; the other becomes a fallback
+  // without generating a duplicate conversion.
+  if (localStorage.getItem(LEAD_TRACKING_KEY)) return
 
   const fbq = ensurePixel()
   if (!fbq) return
