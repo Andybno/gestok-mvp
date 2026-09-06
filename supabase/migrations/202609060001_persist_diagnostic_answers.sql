@@ -2,6 +2,36 @@ alter table public.lead_funnel_sessions
   add column if not exists answers jsonb not null default '{}'::jsonb,
   add column if not exists excluded_from_analytics boolean not null default false;
 
+-- Versões antigas podiam concluir um lead sem criar a sessão de funil. Gera a
+-- sessão correspondente para que todos os diagnósticos históricos sejam visíveis.
+insert into public.lead_funnel_sessions (
+  id, answered_keys, last_question, lead_id, answers, started_at, updated_at, completed_at
+)
+select
+  leads.id,
+  array['operation_type','units_count','inventory_method','main_challenge','sku_count','sales_channels','whatsapp','email','contact_consent'],
+  9,
+  leads.id,
+  jsonb_strip_nulls(jsonb_build_object(
+    'full_name', leads.full_name, 'email', leads.email, 'whatsapp', leads.whatsapp,
+    'business_name', leads.business_name, 'city', leads.city, 'state', leads.state, 'role', leads.role,
+    'operation_type', leads.operation_type, 'sales_channels', to_jsonb(leads.sales_channels),
+    'units_count', leads.units_count, 'employees_count', leads.employees_count,
+    'monthly_orders', leads.monthly_orders, 'sku_count', leads.sku_count,
+    'inventory_method', leads.inventory_method, 'inventory_frequency', leads.inventory_frequency,
+    'uses_erp', leads.uses_erp, 'estimated_loss', leads.estimated_loss, 'main_challenge', leads.main_challenge,
+    'contact_consent', leads.contact_consent, 'marketing_consent', leads.marketing_consent,
+    'privacy_policy_version', leads.privacy_policy_version
+  )),
+  leads.created_at,
+  leads.created_at,
+  leads.created_at
+from public.leads leads
+where not exists (
+  select 1 from public.lead_funnel_sessions sessions where sessions.lead_id = leads.id
+)
+on conflict (id) do nothing;
+
 create or replace function public.start_diagnostic_session(p_session_id uuid)
 returns void
 language plpgsql
