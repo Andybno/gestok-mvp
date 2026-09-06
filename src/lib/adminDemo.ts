@@ -1,4 +1,4 @@
-import type { AdminOverview, AdminUserDetail, AdminUserSummary, Product, StockMovement } from '../types'
+import type { AdminDiagnosticSession, AdminOverview, AdminUserDetail, AdminUserSummary, Product, StockMovement } from '../types'
 
 const ago = (days: number, hours = 0) => new Date(Date.now() - (days * 24 + hours) * 3600000).toISOString()
 const ahead = (days: number, hours = 0) => new Date(Date.now() + (days * 24 + hours) * 3600000).toISOString()
@@ -9,6 +9,12 @@ const users: AdminUserSummary[] = [
   { id: 'user-3', email: 'marina@cafedemo.com', full_name: 'Marina Alves', business_name: 'Café do Parque', subscription_status: 'trialing', created_at: ago(5), last_seen_at: ago(1, 3), products_count: 0, movements_count: 0, onboarding_status: 'pending_booking', excluded_from_analytics: false },
   { id: 'user-4', email: 'joao@deliverydemo.com', full_name: 'João Santos', business_name: 'Prato Rápido Delivery', subscription_status: 'past_due', created_at: ago(34), last_seen_at: ago(8), products_count: 24, movements_count: 83, onboarding_status: 'completed', onboarding_completed_at: ago(31), excluded_from_analytics: false },
   { id: 'user-5', email: 'beatriz@padariademo.com', full_name: 'Beatriz Costa', business_name: 'Padaria Aurora', subscription_status: 'expired', created_at: ago(12), last_seen_at: ago(12), products_count: 0, movements_count: 0, onboarding_status: 'scheduled', onboarding_scheduled_at: ahead(3), excluded_from_analytics: false },
+]
+
+const diagnosticSessions: AdminDiagnosticSession[] = [
+  { id: '00000000-0000-4000-8000-000000000001', answered_keys: ['operation_type', 'units_count', 'inventory_method', 'main_challenge', 'sku_count', 'sales_channels', 'whatsapp', 'email', 'contact_consent'], last_question: 9, started_at: ago(0, 2), updated_at: ago(0, 1), completed_at: ago(0, 1), lead_id: 'lead-demo-1', linked_user_id: 'user-1', excluded_from_analytics: false, source: 'meta', medium: 'paid_social', campaign: 'gestok-diagnostico', meta_attributed: true, answers: { operation_type: 'Restaurante presencial', employees_count: '6 a 10 pessoas', inventory_method: 'Planilha', main_challenge: 'Perdas e desperdícios', inventory_frequency: 'Uma vez por semana', role: 'WhatsApp', estimated_loss: 'Manhã', whatsapp: '(11) 99999-0000', email: 'ana@bistrodemo.com', contact_consent: true, marketing_consent: true } },
+  { id: '00000000-0000-4000-8000-000000000002', answered_keys: ['operation_type', 'units_count', 'inventory_method', 'main_challenge'], last_question: 4, started_at: ago(1, 4), updated_at: ago(1, 3), completed_at: null, lead_id: null, linked_user_id: null, excluded_from_analytics: false, source: 'meta', medium: 'paid_social', campaign: 'gestok-diagnostico', meta_attributed: true, answers: { operation_type: 'Delivery / iFood', employees_count: '1 a 5 pessoas', inventory_method: 'Papel / caderno', main_challenge: 'Falta de produtos' } },
+  { id: '00000000-0000-4000-8000-000000000003', answered_keys: ['operation_type'], last_question: 1, started_at: ago(3), updated_at: ago(3), completed_at: null, lead_id: null, linked_user_id: null, excluded_from_analytics: true, answers: { operation_type: 'Outro food service' } },
 ]
 
 const productNames = ['Filé de frango', 'Arroz branco', 'Tomate italiano', 'Azeite extra virgem', 'Queijo muçarela']
@@ -62,6 +68,7 @@ export function demoAdminOverview(): AdminOverview {
       { key: 'email', label: 'E-mail', count: 103 },
       { key: 'contact_consent', label: 'Consentimento LGPD', count: 91 },
     ],
+    diagnostic_sessions: diagnosticSessions,
     users,
   }
 }

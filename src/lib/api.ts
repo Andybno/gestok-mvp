@@ -15,15 +15,26 @@ function funnelSessionId() {
   return id
 }
 
-export async function trackLeadAnswer(questionKey: string, questionNumber: number) {
+export async function startDiagnosticSession() {
   const sessionId = funnelSessionId()
   if (!supabase) {
-    const saved = JSON.parse(localStorage.getItem(DEMO_FUNNEL_KEY) || '{}') as { answered_keys?: string[]; last_question?: number; started_at?: string }
-    const answeredKeys = Array.from(new Set([...(saved.answered_keys || []), questionKey]))
-    localStorage.setItem(DEMO_FUNNEL_KEY, JSON.stringify({ answered_keys: answeredKeys, last_question: Math.max(saved.last_question || 0, questionNumber), started_at: saved.started_at || new Date().toISOString(), updated_at: new Date().toISOString() }))
+    const saved = JSON.parse(localStorage.getItem(DEMO_FUNNEL_KEY) || '{}')
+    localStorage.setItem(DEMO_FUNNEL_KEY, JSON.stringify({ ...saved, id: sessionId, started_at: saved.started_at || new Date().toISOString(), updated_at: new Date().toISOString() }))
     return
   }
-  const { error } = await supabase.rpc('track_lead_progress', { p_session_id: sessionId, p_question: questionNumber, p_question_key: questionKey })
+  const { error } = await supabase.rpc('start_diagnostic_session', { p_session_id: sessionId })
+  if (error) throw error
+}
+
+export async function trackLeadAnswer(questionKey: string, questionNumber: number, answers: Partial<LeadFormData>) {
+  const sessionId = funnelSessionId()
+  if (!supabase) {
+    const saved = JSON.parse(localStorage.getItem(DEMO_FUNNEL_KEY) || '{}') as { answered_keys?: string[]; last_question?: number; started_at?: string; answers?: Partial<LeadFormData> }
+    const answeredKeys = Array.from(new Set([...(saved.answered_keys || []), questionKey]))
+    localStorage.setItem(DEMO_FUNNEL_KEY, JSON.stringify({ ...saved, answered_keys: answeredKeys, answers: { ...saved.answers, ...answers }, last_question: Math.max(saved.last_question || 0, questionNumber), started_at: saved.started_at || new Date().toISOString(), updated_at: new Date().toISOString() }))
+    return
+  }
+  const { error } = await supabase.rpc('save_diagnostic_progress', { p_session_id: sessionId, p_question: questionNumber, p_question_key: questionKey, p_answers: answers })
   if (error) throw error
 }
 
@@ -112,6 +123,12 @@ export async function completeUserOnboarding(userId: string) {
 export async function setAdminUserAnalyticsExclusion(userId: string, excluded: boolean) {
   if (!supabase) return
   const { error } = await supabase.rpc('admin_set_user_analytics_exclusion', { p_user_id: userId, p_excluded: excluded })
+  if (error) throw error
+}
+
+export async function setAdminDiagnosticAnalyticsExclusion(sessionId: string, excluded: boolean) {
+  if (!supabase) return
+  const { error } = await supabase.rpc('admin_set_diagnostic_analytics_exclusion', { p_session_id: sessionId, p_excluded: excluded })
   if (error) throw error
 }
 

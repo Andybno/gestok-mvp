@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { ArrowLeft, ArrowRight, CalendarDays, Check, CheckCircle2, ChevronLeft, Clock3, LockKeyhole, ShieldCheck, Sparkles } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Brand } from '../components/Brand'
-import { saveLead, trackAdLandingVisit, trackLeadAnswer } from '../lib/api'
+import { saveLead, startDiagnosticSession, trackAdLandingVisit, trackLeadAnswer } from '../lib/api'
 import { trackMetaDiagnosticLead, trackMetaDiagnosticStart, trackMetaOnboardingBooked, trackMetaScheduleStart } from '../lib/metaPixel'
 import type { LeadFormData } from '../types'
 
@@ -187,6 +187,7 @@ export function LeadFormPage() {
 
   const begin = () => {
     trackMetaDiagnosticStart()
+    void startDiagnosticSession().catch(() => undefined)
     setStarted(true)
   }
 
@@ -204,7 +205,9 @@ export function LeadFormPage() {
     if (transitioning) return
     update(question.id, value)
     if (question.id === 'operation_type') update('sales_channels', operationChannels[value] || [])
-    void trackLeadAnswer(question.progressKey, index + 1).catch(() => undefined)
+    const answers: Partial<LeadFormData> = { [question.id]: value }
+    if (question.id === 'operation_type') answers.sales_channels = operationChannels[value] || []
+    void trackLeadAnswer(question.progressKey, index + 1, answers).catch(() => undefined)
     setError('')
     setTransitioning(true)
     window.setTimeout(() => {
@@ -229,7 +232,10 @@ export function LeadFormPage() {
       if (question.type === 'contact') return setError(!/\S+@\S+\.\S+/.test(data.email) ? 'Informe um e-mail válido.' : 'Confirme o consentimento necessário para concluir.')
       return setError('Preencha esta resposta para continuar.')
     }
-    await trackLeadAnswer(question.progressKey, index + 1).catch(() => undefined)
+    const answers: Partial<LeadFormData> = question.type === 'contact'
+      ? { email: data.email, contact_consent: data.contact_consent, marketing_consent: data.marketing_consent, privacy_policy_version: data.privacy_policy_version }
+      : { [question.id]: data[question.id] }
+    await trackLeadAnswer(question.progressKey, index + 1, answers).catch(() => undefined)
     if (index < questions.length - 1) return advance()
     setSubmitting(true)
     setError('')
@@ -323,7 +329,7 @@ export function LeadFormPage() {
             {question.options!.map((option) => <button type="button" key={option.value} className={selectedValue === option.value ? 'selected' : ''} aria-pressed={selectedValue === option.value} onClick={() => choose(option.value)} disabled={transitioning}><span className="choice-radio">{selectedValue === option.value && <Check size={14} />}</span><span><strong>{option.label}</strong>{option.detail && <small>{option.detail}</small>}</span><ArrowRight className="choice-arrow" size={17} /></button>)}
           </div>}
 
-          {question.type === 'tel' && <div className="single-answer-field"><input autoFocus type="tel" inputMode="tel" value={data.whatsapp} onChange={(event) => update('whatsapp', formatPhone(event.target.value))} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); if (isValid()) void trackLeadAnswer(question.progressKey, index + 1).catch(() => undefined).finally(advance); else setError('Informe um telefone válido com DDD.') } }} enterKeyHint="next" placeholder={question.placeholder} autoComplete="tel" /><small>Pressione Enter ou use o botão para continuar</small></div>}
+          {question.type === 'tel' && <div className="single-answer-field"><input autoFocus type="tel" inputMode="tel" value={data.whatsapp} onChange={(event) => update('whatsapp', formatPhone(event.target.value))} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); if (isValid()) void trackLeadAnswer(question.progressKey, index + 1, { whatsapp: data.whatsapp }).catch(() => undefined).finally(advance); else setError('Informe um telefone válido com DDD.') } }} enterKeyHint="next" placeholder={question.placeholder} autoComplete="tel" /><small>Pressione Enter ou use o botão para continuar</small></div>}
 
           {question.type === 'contact' && <div className="contact-final-step">
             <div className="single-answer-field"><input autoFocus type="email" inputMode="email" value={data.email} onChange={(event) => update('email', event.target.value)} placeholder={question.placeholder} autoComplete="email" /><small>Usaremos este e-mail para confirmar o contato e a demonstração</small></div>

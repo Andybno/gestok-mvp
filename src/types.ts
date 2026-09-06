@@ -103,6 +103,25 @@ export type AdminAdMetrics = {
   updated_at?: string | null
 }
 
+export type AdminDiagnosticSession = {
+  id: string
+  answered_keys: string[]
+  last_question: number
+  started_at: string
+  updated_at: string
+  completed_at?: string | null
+  lead_id?: string | null
+  linked_user_id?: string | null
+  excluded_from_analytics: boolean
+  answers: Partial<LeadFormData>
+  source?: string | null
+  medium?: string | null
+  campaign?: string | null
+  adset?: string | null
+  ad?: string | null
+  meta_attributed?: boolean
+}
+
 export type AdminOverview = {
   started: number
   completed_leads: number
@@ -112,6 +131,7 @@ export type AdminOverview = {
   completed_onboardings: number
   question_steps: AdminFunnelStep[]
   ad_metrics: AdminAdMetrics
+  diagnostic_sessions: AdminDiagnosticSession[]
   users: AdminUserSummary[]
 }
 
