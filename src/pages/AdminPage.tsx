@@ -6,6 +6,27 @@ import { useAuth } from '../context/AuthContext'
 import { completeUserOnboarding, getAdminOverview, getAdminUserDetail, setAdminAdCampaignMetrics, setAdminDiagnosticAnalyticsExclusion, setAdminUserAnalyticsExclusion } from '../lib/api'
 import type { AdminDiagnosticSession, AdminOverview, AdminUserDetail, AdminUserSummary, LeadFormData } from '../types'
 
+type FunnelParticipant = {
+  id: string
+  title: string
+  subtitle: string
+  status: string
+  source?: string
+  session?: AdminDiagnosticSession
+  userId?: string
+}
+
+type FunnelViewStep = {
+  key: string
+  label: string
+  count: number
+  denominator: number
+  detail: string
+  kind: string
+  participants: FunnelParticipant[]
+  emptyMessage?: string
+}
+
 const fullDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -75,6 +96,7 @@ export function AdminPage() {
   const [savingAdMetrics, setSavingAdMetrics] = useState(false)
   const [adMetricsDraft, setAdMetricsDraft] = useState({ reach: '0', impressions: '0', link_clicks: '0' })
   const [search, setSearch] = useState('')
+  const [expandedFunnelKey, setExpandedFunnelKey] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -85,7 +107,9 @@ export function AdminPage() {
   }, [])
 
   const activeUsers = useMemo(() => (overview?.users || []).filter((user) => !user.excluded_from_analytics), [overview])
-  const diagnosticSessions = overview?.diagnostic_sessions || []
+  const diagnosticSessions = useMemo(() => overview?.diagnostic_sessions || [], [overview])
+  const activeDiagnosticSessions = useMemo(() => diagnosticSessions.filter((session) => !session.excluded_from_analytics), [diagnosticSessions])
+  const activeUsersById = useMemo(() => new Map(activeUsers.map((user) => [user.id, user])), [activeUsers])
   const excludedCount = (overview?.users.length || 0) - activeUsers.length
   const users = useMemo(() => (overview?.users || []).filter((user) => (showExcluded || !user.excluded_from_analytics) && `${user.full_name} ${user.business_name} ${user.email}`.toLowerCase().includes(search.toLowerCase())), [overview, search, showExcluded])
 
@@ -156,16 +180,51 @@ export function AdminPage() {
   const base = Math.max(overview?.started || 0, 1)
   const adMetrics = overview?.ad_metrics || { reach: 0, impressions: 0, link_clicks: 0, site_visits: 0, updated_at: null }
   const ratio = (count: number, reference: number, suffix: string) => reference > 0 ? `${Math.round((count / reference) * 100)}% ${suffix}` : 'Aguardando dados'
-  const funnel = overview ? [
-    { key: 'ad-reach', label: 'Pessoas alcançadas', count: adMetrics.reach, denominator: adMetrics.reach, detail: adMetrics.reach ? 'Topo do anúncio' : 'Atualize com dados da Meta', kind: 'ad' },
-    { key: 'ad-click', label: 'Cliques no link', count: adMetrics.link_clicks, denominator: adMetrics.reach, detail: ratio(adMetrics.link_clicks, adMetrics.reach, 'do alcance'), kind: 'ad' },
-    { key: 'ad-visit', label: 'Visitas vindas do anúncio', count: adMetrics.site_visits, denominator: adMetrics.link_clicks, detail: ratio(adMetrics.site_visits, adMetrics.link_clicks, 'dos cliques'), kind: 'ad' },
-    { key: 'diagnostic-start', label: 'Iniciaram o diagnóstico', count: overview.started, denominator: adMetrics.site_visits || overview.started, detail: adMetrics.site_visits ? ratio(overview.started, adMetrics.site_visits, 'das visitas') : 'Base do diagnóstico', kind: 'start' },
-    ...overview.question_steps.filter((step) => ACTIVE_FUNNEL_KEYS.includes(step.key)).map((step) => ({ ...step, label: funnelLabels[step.key] || step.label, denominator: base, detail: `${Math.round((step.count / base) * 100)}% do início`, kind: 'question' })),
-    { key: 'account', label: 'Conta criada', count: overview.accounts_created, denominator: base, detail: ratio(overview.accounts_created, base, 'do início'), kind: 'milestone' },
-    { key: 'onboarding-scheduled', label: 'Onboarding agendado', count: overview.scheduled_onboardings, denominator: base, detail: ratio(overview.scheduled_onboardings, base, 'do início'), kind: 'milestone' },
-    { key: 'onboarding-completed', label: 'Acesso liberado', count: overview.completed_onboardings, denominator: base, detail: ratio(overview.completed_onboardings, base, 'do início'), kind: 'milestone' },
-    { key: 'product', label: 'Primeiro produto cadastrado', count: overview.product_users, denominator: base, detail: ratio(overview.product_users, base, 'do início'), kind: 'milestone' },
+
+  const diagnosticParticipant = (session: AdminDiagnosticSession): FunnelParticipant => {
+    const progress = diagnosticProgress(session)
+    const linkedUser = session.linked_user_id ? activeUsersById.get(session.linked_user_id) : undefined
+    const status = linkedUser
+      ? linkedUser.products_count > 0 ? 'Produto cadastrado' : onboardingLabels[linkedUser.onboarding_status]
+      : session.completed_at || session.lead_id ? 'Diagnóstico concluído' : progress ? `Pergunta ${progress} de ${DIAGNOSTIC_QUESTION_COUNT}` : 'Diagnóstico iniciado'
+    return {
+      id: `session-${session.id}`,
+      title: diagnosticContact(session),
+      subtitle: session.answers.operation_type || 'Operação ainda não informada',
+      status,
+      source: session.meta_attributed ? 'Meta Ads' : session.source || 'Direto',
+      session,
+    }
+  }
+
+  const userParticipant = (user: AdminUserSummary, status: string): FunnelParticipant => ({
+    id: `user-${user.id}`,
+    title: user.full_name || user.email,
+    subtitle: `${user.business_name || 'Estabelecimento não informado'} · ${user.email}`,
+    status,
+    userId: user.id,
+  })
+
+  const diagnosticParticipants = activeDiagnosticSessions.map(diagnosticParticipant)
+  const metaParticipants = activeDiagnosticSessions.filter((session) => session.meta_attributed).map(diagnosticParticipant)
+  const funnel: FunnelViewStep[] = overview ? [
+    { key: 'ad-reach', label: 'Pessoas alcançadas', count: adMetrics.reach, denominator: adMetrics.reach, detail: adMetrics.reach ? 'Topo do anúncio' : 'Atualize com dados da Meta', kind: 'ad', participants: [], emptyMessage: 'A Meta fornece apenas o total de pessoas alcançadas, sem revelar a identidade individual.' },
+    { key: 'ad-click', label: 'Cliques no link', count: adMetrics.link_clicks, denominator: adMetrics.reach, detail: ratio(adMetrics.link_clicks, adMetrics.reach, 'do alcance'), kind: 'ad', participants: [], emptyMessage: 'A Meta informa a quantidade de cliques, mas não disponibiliza a identidade de quem clicou.' },
+    { key: 'ad-visit', label: 'Visitas vindas do anúncio', count: adMetrics.site_visits, denominator: adMetrics.link_clicks, detail: ratio(adMetrics.site_visits, adMetrics.link_clicks, 'dos cliques'), kind: 'ad', participants: metaParticipants, emptyMessage: 'Ainda não há sessões identificadas com origem Meta Ads.' },
+    { key: 'diagnostic-start', label: 'Iniciaram o diagnóstico', count: overview.started, denominator: adMetrics.site_visits || overview.started, detail: adMetrics.site_visits ? ratio(overview.started, adMetrics.site_visits, 'das visitas') : 'Base do diagnóstico', kind: 'start', participants: diagnosticParticipants, emptyMessage: 'Nenhum diagnóstico incluído na análise.' },
+    ...overview.question_steps.filter((step) => ACTIVE_FUNNEL_KEYS.includes(step.key)).map((step) => ({
+      ...step,
+      label: funnelLabels[step.key] || step.label,
+      denominator: base,
+      detail: `${Math.round((step.count / base) * 100)}% do início`,
+      kind: 'question',
+      participants: activeDiagnosticSessions.filter((session) => session.answered_keys.includes(step.key)).map(diagnosticParticipant),
+      emptyMessage: 'Nenhum contato chegou a esta pergunta.',
+    })),
+    { key: 'account', label: 'Conta criada', count: overview.accounts_created, denominator: base, detail: ratio(overview.accounts_created, base, 'do início'), kind: 'milestone', participants: activeUsers.map((user) => userParticipant(user, 'Conta criada')), emptyMessage: 'Nenhuma conta incluída na análise.' },
+    { key: 'onboarding-scheduled', label: 'Onboarding agendado', count: overview.scheduled_onboardings, denominator: base, detail: ratio(overview.scheduled_onboardings, base, 'do início'), kind: 'milestone', participants: activeUsers.filter((user) => Boolean(user.onboarding_scheduled_at)).map((user) => userParticipant(user, 'Reunião marcada')), emptyMessage: 'Nenhum onboarding está registrado no banco de dados.' },
+    { key: 'onboarding-completed', label: 'Acesso liberado', count: overview.completed_onboardings, denominator: base, detail: ratio(overview.completed_onboardings, base, 'do início'), kind: 'milestone', participants: activeUsers.filter((user) => user.onboarding_status === 'completed').map((user) => userParticipant(user, 'Acesso liberado')), emptyMessage: 'Nenhum usuário teve o acesso liberado.' },
+    { key: 'product', label: 'Primeiro produto cadastrado', count: overview.product_users, denominator: base, detail: ratio(overview.product_users, base, 'do início'), kind: 'milestone', participants: activeUsers.filter((user) => user.products_count > 0).map((user) => userParticipant(user, `${user.products_count} ${user.products_count === 1 ? 'produto' : 'produtos'}`)), emptyMessage: 'Nenhum usuário cadastrou produtos.' },
   ] : []
   const leadConversion = overview ? Math.round((overview.completed_leads / base) * 100) : 0
 
@@ -209,12 +268,27 @@ export function AdminPage() {
             <article className="panel admin-funnel-panel">
               <div className="panel-heading"><div><h2>Análise do funil</h2><p>Usuários que responderam cada pergunta e avançaram no produto.</p></div><span className="admin-live"><span /> Em tempo real</span></div>
               <div className="admin-funnel">
-                {funnel.map((step, index) => <div className={`admin-funnel-row ${step.kind}`} key={step.key}>
-                  <span className="funnel-index">{step.kind === 'question' ? index - 3 : <ChevronRight size={14} />}</span>
-                  <div className="funnel-label"><strong>{step.label}</strong><small>{step.detail}</small></div>
-                  <div className="funnel-track"><span style={{ width: `${step.count ? Math.max(3, Math.min(100, (step.count / Math.max(step.denominator, 1)) * 100)) : 0}%` }} /></div>
-                  <b>{step.count}</b>
-                </div>)}
+                {funnel.map((step, index) => {
+                  const expanded = expandedFunnelKey === step.key
+                  return <div className={`admin-funnel-item ${expanded ? 'expanded' : ''}`} key={step.key}>
+                    <div className={`admin-funnel-row ${step.kind}`}>
+                      <span className="funnel-index">{step.kind === 'question' ? index - 3 : <ChevronRight size={14} />}</span>
+                      <div className="funnel-label"><strong>{step.label}</strong><small>{step.detail}</small></div>
+                      <div className="funnel-track"><span style={{ width: `${step.count ? Math.max(3, Math.min(100, (step.count / Math.max(step.denominator, 1)) * 100)) : 0}%` }} /></div>
+                      <b>{step.count}</b>
+                      <button type="button" className="funnel-expand-button" aria-label={`${expanded ? 'Recolher' : 'Expandir'} ${step.label}`} aria-expanded={expanded} onClick={() => setExpandedFunnelKey(expanded ? null : step.key)}><ChevronRight size={15} /></button>
+                    </div>
+                    {expanded && <div className="admin-funnel-details">
+                      <div className="admin-funnel-details-heading"><strong>{step.participants.length ? `${step.participants.length} ${step.participants.length === 1 ? 'registro identificado' : 'registros identificados'}` : 'Sem registros identificáveis'}</strong><small>{step.participants.length ? 'Pessoas que chegaram a esta etapa' : step.emptyMessage}</small></div>
+                      {step.participants.length > 0 && <div className="admin-funnel-people">{step.participants.map((participant) => <button type="button" key={participant.id} onClick={() => participant.session ? (setDetail(null), setDiagnosticDetail(participant.session)) : participant.userId ? void openUser(participant.userId) : undefined}>
+                        <span className="avatar">{participant.title.slice(0, 1).toUpperCase()}</span>
+                        <span className="funnel-person-copy"><strong>{participant.title}</strong><small>{participant.subtitle}</small></span>
+                        <span className="funnel-person-meta"><em>{participant.status}</em>{participant.source && <small>{participant.source}</small>}</span>
+                        <Eye size={15} />
+                      </button>)}</div>}
+                    </div>}
+                  </div>
+                })}
               </div>
             </article>
 
