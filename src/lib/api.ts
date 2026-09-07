@@ -6,6 +6,7 @@ import type { AdminOverview, AdminUserDetail, InventoryScanItem, LeadFormData, P
 const uid = () => crypto.randomUUID()
 const FUNNEL_SESSION_KEY = 'gestok_funnel_session_id'
 const DEMO_FUNNEL_KEY = 'gestok_demo_funnel'
+const META_SOURCES = new Set(['meta', 'facebook', 'instagram', 'fb', 'ig'])
 
 function funnelSessionId() {
   const saved = localStorage.getItem(FUNNEL_SESSION_KEY)
@@ -46,7 +47,7 @@ export async function trackAdLandingVisit() {
   const campaign = params.get('utm_campaign')
   const adset = params.get('utm_term')
   const ad = params.get('utm_content')
-  const metaAttributed = source?.toLowerCase() === 'meta'
+  const metaAttributed = META_SOURCES.has(source?.toLowerCase() || '')
     || medium?.toLowerCase() === 'paid_social'
     || params.has('fbclid')
 

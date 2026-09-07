@@ -87,6 +87,14 @@ const initialData: LeadFormData = {
 
 const CAL_NAMESPACE = 'gestokDiagnostic'
 const CAL_LINK = 'gestokbr/onboarding'
+const META_SOURCES = new Set(['meta', 'facebook', 'instagram', 'fb', 'ig'])
+
+function arrivedFromAd() {
+  const params = new URLSearchParams(window.location.search)
+  return META_SOURCES.has(params.get('utm_source')?.toLowerCase() || '')
+    || params.get('utm_medium')?.toLowerCase() === 'paid_social'
+    || params.has('fbclid')
+}
 
 type CalApi = ((...args: unknown[]) => void) & { loaded?: boolean; ns: Record<string, CalApi>; q: unknown[][] }
 type CalEmbedEvent = { detail?: { data?: { startTime?: string; uid?: string } } }
@@ -131,7 +139,7 @@ function formatPhone(value: string) {
 }
 
 export function LeadFormPage() {
-  const [started, setStarted] = useState(false)
+  const [started, setStarted] = useState(arrivedFromAd)
   const [completed, setCompleted] = useState(false)
   const [bookingStarted, setBookingStarted] = useState(false)
   const [bookingConfirmed, setBookingConfirmed] = useState(false)
@@ -152,6 +160,10 @@ export function LeadFormPage() {
 
   useEffect(() => {
     void trackAdLandingVisit().catch(() => undefined)
+    if (arrivedFromAd()) {
+      trackMetaDiagnosticStart()
+      void startDiagnosticSession().catch(() => undefined)
+    }
   }, [])
 
   useEffect(() => {
