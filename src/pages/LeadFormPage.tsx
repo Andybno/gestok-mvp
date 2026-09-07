@@ -48,25 +48,6 @@ const questions: Question[] = [
     { value: 'Contagem manual demorada', label: 'Contagem manual demorada', detail: 'O inventário consome muito tempo da equipe' },
     { value: 'Falta de visibilidade', label: 'Falta de visibilidade', detail: 'É difícil saber o saldo e decidir o que comprar' },
   ] },
-  { id: 'inventory_frequency', progressKey: 'sku_count', eyebrow: 'Inventário', title: 'Com que frequência o estoque é contado?', subtitle: 'Considere a contagem completa ou a conferência dos principais itens.', type: 'choice', options: [
-    { value: 'Todos os dias', label: 'Todos os dias' },
-    { value: 'Algumas vezes por semana', label: 'Algumas vezes por semana' },
-    { value: 'Uma vez por semana', label: 'Uma vez por semana' },
-    { value: 'Uma vez por mês', label: 'Uma vez por mês' },
-    { value: 'Não fazemos inventário', label: 'Não fazemos inventário' },
-  ] },
-  { id: 'role', progressKey: 'sales_channels', eyebrow: 'Preferência de contato', title: 'Qual é o melhor canal para falarmos com você?', subtitle: 'Usaremos sua preferência para dar continuidade ao diagnóstico.', type: 'choice', options: [
-    { value: 'WhatsApp', label: 'WhatsApp' },
-    { value: 'Ligação', label: 'Ligação telefônica' },
-    { value: 'E-mail', label: 'E-mail' },
-    { value: 'Sem preferência', label: 'Sem preferência' },
-  ] },
-  { id: 'estimated_loss', progressKey: 'whatsapp', eyebrow: 'Demonstração', title: 'Qual é o melhor período para a demonstração?', subtitle: 'No calendário você poderá escolher o dia e o horário exatos.', type: 'choice', options: [
-    { value: 'Manhã', label: 'Manhã', detail: 'Entre 8h e 12h' },
-    { value: 'Início da tarde', label: 'Início da tarde', detail: 'Entre 12h e 15h' },
-    { value: 'Fim da tarde', label: 'Fim da tarde', detail: 'Entre 15h e 18h' },
-    { value: 'Sem preferência', label: 'Sem preferência' },
-  ] },
   { id: 'whatsapp', progressKey: 'email', eyebrow: 'Seus dados', title: 'Qual é o seu número de telefone?', subtitle: 'Inclua o DDD. Este dado será usado somente conforme suas autorizações.', type: 'tel', placeholder: '(11) 99999-9999' },
   { id: 'contact_consent', progressKey: 'contact_consent', eyebrow: 'Contato e privacidade', title: 'Qual é o seu melhor e-mail?', subtitle: 'Última etapa: informe seu e-mail e revise as autorizações de contato.', type: 'contact', placeholder: 'voce@empresa.com' },
 ]

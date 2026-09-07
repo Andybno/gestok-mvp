@@ -17,10 +17,12 @@ const onboardingLabels: Record<AdminUserSummary['onboarding_status'], string> = 
   pending_booking: 'Aguardando agenda', scheduled: 'Reunião marcada', completed: 'Acesso liberado',
 }
 
+const DIAGNOSTIC_QUESTION_COUNT = 6
+const ACTIVE_FUNNEL_KEYS = ['operation_type', 'units_count', 'inventory_method', 'main_challenge', 'email', 'contact_consent']
+
 const answerLabels: Array<[keyof LeadFormData, string]> = [
   ['operation_type', 'Tipo de operação'], ['employees_count', 'Tamanho da equipe'], ['inventory_method', 'Controle atual'],
-  ['main_challenge', 'Principal problema'], ['inventory_frequency', 'Frequência do inventário'], ['role', 'Canal de contato preferido'],
-  ['estimated_loss', 'Melhor período para demonstração'], ['whatsapp', 'Telefone'], ['email', 'E-mail'],
+  ['main_challenge', 'Principal problema'], ['whatsapp', 'Telefone'], ['email', 'E-mail'],
   ['contact_consent', 'Consentimento de contato'], ['marketing_consent', 'Consentimento de marketing'],
 ]
 
@@ -29,11 +31,12 @@ const funnelLabels: Record<string, string> = {
   units_count: 'Tamanho da equipe',
   inventory_method: 'Controle atual',
   main_challenge: 'Principal problema',
-  sku_count: 'Frequência do inventário',
-  sales_channels: 'Canal de contato',
-  whatsapp: 'Período da demonstração',
   email: 'Telefone',
   contact_consent: 'E-mail e consentimento LGPD',
+}
+
+function diagnosticProgress(session: AdminDiagnosticSession) {
+  return ACTIVE_FUNNEL_KEYS.filter((key) => session.answered_keys.includes(key)).length
 }
 
 function lastSeenLabel(value: string) {
@@ -158,7 +161,7 @@ export function AdminPage() {
     { key: 'ad-click', label: 'Cliques no link', count: adMetrics.link_clicks, denominator: adMetrics.reach, detail: ratio(adMetrics.link_clicks, adMetrics.reach, 'do alcance'), kind: 'ad' },
     { key: 'ad-visit', label: 'Visitas vindas do anúncio', count: adMetrics.site_visits, denominator: adMetrics.link_clicks, detail: ratio(adMetrics.site_visits, adMetrics.link_clicks, 'dos cliques'), kind: 'ad' },
     { key: 'diagnostic-start', label: 'Iniciaram o diagnóstico', count: overview.started, denominator: adMetrics.site_visits || overview.started, detail: adMetrics.site_visits ? ratio(overview.started, adMetrics.site_visits, 'das visitas') : 'Base do diagnóstico', kind: 'start' },
-    ...overview.question_steps.map((step) => ({ ...step, label: funnelLabels[step.key] || step.label, denominator: base, detail: `${Math.round((step.count / base) * 100)}% do início`, kind: 'question' })),
+    ...overview.question_steps.filter((step) => ACTIVE_FUNNEL_KEYS.includes(step.key)).map((step) => ({ ...step, label: funnelLabels[step.key] || step.label, denominator: base, detail: `${Math.round((step.count / base) * 100)}% do início`, kind: 'question' })),
     { key: 'account', label: 'Conta criada', count: overview.accounts_created, denominator: base, detail: ratio(overview.accounts_created, base, 'do início'), kind: 'milestone' },
     { key: 'onboarding-scheduled', label: 'Onboarding agendado', count: overview.scheduled_onboardings, denominator: base, detail: ratio(overview.scheduled_onboardings, base, 'do início'), kind: 'milestone' },
     { key: 'onboarding-completed', label: 'Acesso liberado', count: overview.completed_onboardings, denominator: base, detail: ratio(overview.completed_onboardings, base, 'do início'), kind: 'milestone' },
@@ -225,8 +228,9 @@ export function AdminPage() {
             <div className="panel-heading admin-users-heading"><div><h2>Todos os diagnósticos</h2><p>Respostas completas e abandonadas, mesmo quando a pessoa não criou uma conta.</p></div><span className="admin-record-count">{diagnosticSessions.length} registros</span></div>
             <div className="responsive-table"><table><thead><tr><th>Contato / sessão</th><th>Status</th><th>Progresso</th><th>Origem</th><th>Conta</th><th>Análise</th><th>Última atividade</th><th><span className="sr-only">Detalhes</span></th></tr></thead><tbody>{diagnosticSessions.map((session) => {
               const completed = Boolean(session.completed_at || session.lead_id)
-              const status = completed ? 'Concluído' : session.last_question > 0 ? 'Incompleto' : 'Iniciado'
-              return <tr key={session.id} className={session.excluded_from_analytics ? 'admin-user-excluded' : ''}><td><div className="diagnostic-contact"><strong>{diagnosticContact(session)}</strong><small>{session.answers.operation_type || 'Operação ainda não informada'}</small></div></td><td><span className={`diagnostic-status ${completed ? 'completed' : session.last_question > 0 ? 'incomplete' : 'started'}`}>{status}</span></td><td><strong>{Math.min(9, session.last_question)} de 9</strong></td><td>{session.meta_attributed ? <span className="analytics-status">Meta Ads</span> : <span className="muted">{session.source || 'Direto'}</span>}</td><td>{session.linked_user_id ? 'Criada' : <span className="muted">Não criada</span>}</td><td><span className={`analytics-status ${session.excluded_from_analytics ? 'excluded' : ''}`}>{session.excluded_from_analytics ? 'Removido' : 'Incluído'}</span></td><td><span className="last-seen"><span />{lastSeenLabel(session.updated_at)}</span></td><td><button className="admin-view-button" onClick={() => { setDetail(null); setDiagnosticDetail(session) }}><Eye size={15} /> Visualizar</button></td></tr>
+              const progress = diagnosticProgress(session)
+              const status = completed ? 'Concluído' : progress > 0 ? 'Incompleto' : 'Iniciado'
+              return <tr key={session.id} className={session.excluded_from_analytics ? 'admin-user-excluded' : ''}><td><div className="diagnostic-contact"><strong>{diagnosticContact(session)}</strong><small>{session.answers.operation_type || 'Operação ainda não informada'}</small></div></td><td><span className={`diagnostic-status ${completed ? 'completed' : progress > 0 ? 'incomplete' : 'started'}`}>{status}</span></td><td><strong>{progress} de {DIAGNOSTIC_QUESTION_COUNT}</strong></td><td>{session.meta_attributed ? <span className="analytics-status">Meta Ads</span> : <span className="muted">{session.source || 'Direto'}</span>}</td><td>{session.linked_user_id ? 'Criada' : <span className="muted">Não criada</span>}</td><td><span className={`analytics-status ${session.excluded_from_analytics ? 'excluded' : ''}`}>{session.excluded_from_analytics ? 'Removido' : 'Incluído'}</span></td><td><span className="last-seen"><span />{lastSeenLabel(session.updated_at)}</span></td><td><button className="admin-view-button" onClick={() => { setDetail(null); setDiagnosticDetail(session) }}><Eye size={15} /> Visualizar</button></td></tr>
             })}</tbody></table></div>
           </section>
 
@@ -240,11 +244,11 @@ export function AdminPage() {
       {diagnosticDetail && <div className="admin-drawer-backdrop" onClick={() => setDiagnosticDetail(null)}><aside className="admin-drawer" onClick={(event) => event.stopPropagation()} aria-label="Detalhes do diagnóstico">
         <div className="admin-drawer-header"><div><span className="avatar">D</span><span><h2>{diagnosticContact(diagnosticDetail)}</h2><p>Diagnóstico {diagnosticDetail.completed_at || diagnosticDetail.lead_id ? 'concluído' : 'não concluído'} · sessão {diagnosticDetail.id.slice(0, 8)}</p></span></div><button className="icon-button" onClick={() => setDiagnosticDetail(null)} aria-label="Fechar"><X size={19} /></button></div>
         <div className="admin-drawer-body">
-          <div className="admin-detail-summary"><div><small>Progresso</small><strong>{Math.min(9, diagnosticDetail.last_question)} de 9 perguntas</strong><span>{Math.min(9, diagnosticDetail.answered_keys.length)} etapas registradas</span></div><div><small>Iniciado</small><strong>{fullDate.format(new Date(diagnosticDetail.started_at))}</strong><span>Primeiro registro da sessão</span></div><div><small>Última atividade</small><strong>{lastSeenLabel(diagnosticDetail.updated_at)}</strong><span>{fullDate.format(new Date(diagnosticDetail.updated_at))}</span></div><div><small>Conta</small><strong>{diagnosticDetail.linked_user_id ? 'Conta criada' : 'Sem conta'}</strong><span>{diagnosticDetail.lead_id ? 'Formulário concluído' : 'Diagnóstico abandonado'}</span></div></div>
+          <div className="admin-detail-summary"><div><small>Progresso</small><strong>{diagnosticProgress(diagnosticDetail)} de {DIAGNOSTIC_QUESTION_COUNT} perguntas</strong><span>{diagnosticProgress(diagnosticDetail)} etapas registradas</span></div><div><small>Iniciado</small><strong>{fullDate.format(new Date(diagnosticDetail.started_at))}</strong><span>Primeiro registro da sessão</span></div><div><small>Última atividade</small><strong>{lastSeenLabel(diagnosticDetail.updated_at)}</strong><span>{fullDate.format(new Date(diagnosticDetail.updated_at))}</span></div><div><small>Conta</small><strong>{diagnosticDetail.linked_user_id ? 'Conta criada' : 'Sem conta'}</strong><span>{diagnosticDetail.lead_id ? 'Formulário concluído' : 'Diagnóstico abandonado'}</span></div></div>
 
           <section className={`admin-exclusion-action ${diagnosticDetail.excluded_from_analytics ? 'excluded' : ''}`}><span>{diagnosticDetail.excluded_from_analytics ? <RotateCcw /> : <UserMinus />}</span><div><small>Participação nas análises</small><strong>{diagnosticDetail.excluded_from_analytics ? 'Diagnóstico removido dos indicadores' : 'Diagnóstico incluído nos indicadores'}</strong><p>O registro e todas as respostas continuam visíveis. Esta opção serve para não contar testes no funil.</p></div><button type="button" className="button button-ghost button-sm" onClick={() => updateDiagnosticExclusion(!diagnosticDetail.excluded_from_analytics)} disabled={updatingDiagnosticExclusion}>{updatingDiagnosticExclusion ? 'Salvando...' : diagnosticDetail.excluded_from_analytics ? 'Restaurar nas análises' : 'Remover da análise'}</button></section>
 
-          <section className="admin-detail-section"><h3>Respostas salvas <span>{diagnosticDetail.answered_keys.length}</span></h3><div className="admin-answer-grid">{answerLabels.map(([key, label]) => <div key={key}><small>{label}</small><strong>{answerValue(diagnosticDetail.answers[key])}</strong></div>)}</div></section>
+          <section className="admin-detail-section"><h3>Respostas salvas <span>{diagnosticProgress(diagnosticDetail)}</span></h3><div className="admin-answer-grid">{answerLabels.map(([key, label]) => <div key={key}><small>{label}</small><strong>{answerValue(diagnosticDetail.answers[key])}</strong></div>)}</div></section>
 
           <section className="admin-detail-section"><h3>Origem da sessão</h3><div className="admin-answer-grid"><div><small>Fonte</small><strong>{diagnosticDetail.source || 'Acesso direto'}</strong></div><div><small>Mídia</small><strong>{diagnosticDetail.medium || 'Não informada'}</strong></div><div><small>Campanha</small><strong>{diagnosticDetail.campaign || 'Não informada'}</strong></div><div><small>Criativo</small><strong>{diagnosticDetail.ad || 'Não informado'}</strong></div></div></section>
         </div>

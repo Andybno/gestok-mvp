@@ -12,7 +12,7 @@ const users: AdminUserSummary[] = [
 ]
 
 const diagnosticSessions: AdminDiagnosticSession[] = [
-  { id: '00000000-0000-4000-8000-000000000001', answered_keys: ['operation_type', 'units_count', 'inventory_method', 'main_challenge', 'sku_count', 'sales_channels', 'whatsapp', 'email', 'contact_consent'], last_question: 9, started_at: ago(0, 2), updated_at: ago(0, 1), completed_at: ago(0, 1), lead_id: 'lead-demo-1', linked_user_id: 'user-1', excluded_from_analytics: false, source: 'meta', medium: 'paid_social', campaign: 'gestok-diagnostico', meta_attributed: true, answers: { operation_type: 'Restaurante presencial', employees_count: '6 a 10 pessoas', inventory_method: 'Planilha', main_challenge: 'Perdas e desperdícios', inventory_frequency: 'Uma vez por semana', role: 'WhatsApp', estimated_loss: 'Manhã', whatsapp: '(11) 99999-0000', email: 'ana@bistrodemo.com', contact_consent: true, marketing_consent: true } },
+  { id: '00000000-0000-4000-8000-000000000001', answered_keys: ['operation_type', 'units_count', 'inventory_method', 'main_challenge', 'email', 'contact_consent'], last_question: 6, started_at: ago(0, 2), updated_at: ago(0, 1), completed_at: ago(0, 1), lead_id: 'lead-demo-1', linked_user_id: 'user-1', excluded_from_analytics: false, source: 'meta', medium: 'paid_social', campaign: 'gestok-diagnostico', meta_attributed: true, answers: { operation_type: 'Restaurante presencial', employees_count: '6 a 10 pessoas', inventory_method: 'Planilha', main_challenge: 'Perdas e desperdícios', whatsapp: '(11) 99999-0000', email: 'ana@bistrodemo.com', contact_consent: true, marketing_consent: true } },
   { id: '00000000-0000-4000-8000-000000000002', answered_keys: ['operation_type', 'units_count', 'inventory_method', 'main_challenge'], last_question: 4, started_at: ago(1, 4), updated_at: ago(1, 3), completed_at: null, lead_id: null, linked_user_id: null, excluded_from_analytics: false, source: 'meta', medium: 'paid_social', campaign: 'gestok-diagnostico', meta_attributed: true, answers: { operation_type: 'Delivery / iFood', employees_count: '1 a 5 pessoas', inventory_method: 'Papel / caderno', main_challenge: 'Falta de produtos' } },
   { id: '00000000-0000-4000-8000-000000000003', answered_keys: ['operation_type'], last_question: 1, started_at: ago(3), updated_at: ago(3), completed_at: null, lead_id: null, linked_user_id: null, excluded_from_analytics: true, answers: { operation_type: 'Outro food service' } },
 ]
@@ -59,13 +59,10 @@ export function demoAdminOverview(): AdminOverview {
     ad_metrics: { reach: 1240, impressions: 1678, link_clicks: 96, site_visits: 83, updated_at: new Date().toISOString() },
     question_steps: [
       { key: 'operation_type', label: 'Tipo de operação', count: 184 },
-      { key: 'sales_channels', label: 'Canais de venda', count: 171 },
       { key: 'units_count', label: 'Número de unidades', count: 158 },
-      { key: 'sku_count', label: 'Itens no estoque', count: 146 },
       { key: 'inventory_method', label: 'Controle atual', count: 133 },
       { key: 'main_challenge', label: 'Maior desafio', count: 121 },
-      { key: 'whatsapp', label: 'Telefone', count: 112 },
-      { key: 'email', label: 'E-mail', count: 103 },
+      { key: 'email', label: 'Telefone', count: 103 },
       { key: 'contact_consent', label: 'Consentimento LGPD', count: 91 },
     ],
     diagnostic_sessions: diagnosticSessions,
