@@ -1,17 +1,16 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { AlertTriangle, Edit3, PackageOpen, Plus, Search, Trash2, X } from 'lucide-react'
-import { deleteProduct, listProducts, saveProduct } from '../lib/api'
+import { useEffect, useMemo, useState } from 'react'
+import { AlertTriangle, Edit3, PackageOpen, Plus, Search, Trash2 } from 'lucide-react'
+import { deleteProduct, listProducts } from '../lib/api'
+import { ProductFormModal } from '../components/ProductFormModal'
 import type { Product } from '../types'
 
-const emptyProduct = { name: '', category: '', sku: '', unit: 'un', quantity: 0, minimum_stock: 0, unit_cost: 0, expires_at: '' }
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
 export function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'low'>('all')
-  const [modal, setModal] = useState(false)
-  const [form, setForm] = useState<typeof emptyProduct & { id?: string }>(emptyProduct)
+  const [editing, setEditing] = useState<Product | null | undefined>(undefined)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -23,18 +22,7 @@ export function ProductsPage() {
     return matchesSearch && (filter === 'all' || product.quantity <= product.minimum_stock)
   }), [products, search, filter])
 
-  const openForm = (product?: Product) => {
-    setForm(product ? { ...product, expires_at: product.expires_at || '' } : emptyProduct)
-    setError(''); setModal(true)
-  }
-
-  const submit = async (event: FormEvent) => {
-    event.preventDefault(); setError('')
-    try {
-      await saveProduct({ ...form, quantity: Number(form.quantity), minimum_stock: Number(form.minimum_stock), unit_cost: Number(form.unit_cost), expires_at: form.expires_at || null })
-      setModal(false); await refresh()
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível salvar.') }
-  }
+  const openForm = (product?: Product) => { setError(''); setEditing(product ?? null) }
 
   const remove = async (product: Product) => {
     if (!window.confirm(`Excluir “${product.name}”? O histórico relacionado também poderá ser removido.`)) return
@@ -53,7 +41,11 @@ export function ProductsPage() {
         })}</tbody></table></div> : <div className="empty-state"><span><PackageOpen size={28} /></span><h3>Nenhum produto encontrado</h3><p>{search ? 'Tente outro termo de busca.' : 'Cadastre o primeiro item para começar a controlar seu estoque.'}</p>{!search && <button className="button" onClick={() => openForm()}><Plus size={17} /> Cadastrar produto</button>}</div>}
       </section>
 
-      {modal && <div className="modal-backdrop" role="presentation"><div className="modal" role="dialog" aria-modal="true" aria-labelledby="product-modal-title"><div className="modal-heading"><div><span className="modal-icon"><PackageOpen size={20} /></span><div><h2 id="product-modal-title">{form.id ? 'Editar produto' : 'Novo produto'}</h2><p>Preencha as informações do item.</p></div></div><button onClick={() => setModal(false)} aria-label="Fechar"><X size={20} /></button></div><form onSubmit={submit} className="modal-form"><div className="field-grid"><label className="field full"><span>Nome do produto *</span><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ex.: Filé de frango" autoFocus /></label><label className="field"><span>Categoria *</span><input required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="Ex.: Proteínas" /></label><label className="field"><span>SKU / código</span><input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="PRO-001" /></label><label className="field"><span>Unidade *</span><select required value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}><option value="un">Unidade (un)</option><option value="kg">Quilograma (kg)</option><option value="g">Grama (g)</option><option value="l">Litro (l)</option><option value="ml">Mililitro (ml)</option><option value="cx">Caixa (cx)</option><option value="pct">Pacote (pct)</option></select></label><label className="field"><span>Estoque atual *</span><input required min="0" step="0.01" type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })} /></label><label className="field"><span>Estoque mínimo *</span><input required min="0" step="0.01" type="number" value={form.minimum_stock} onChange={(e) => setForm({ ...form, minimum_stock: Number(e.target.value) })} /></label><label className="field"><span>Custo unitário (R$)</span><input min="0" step="0.01" type="number" value={form.unit_cost} onChange={(e) => setForm({ ...form, unit_cost: Number(e.target.value) })} /></label><label className="field"><span>Data de validade</span><input type="date" value={form.expires_at} onChange={(e) => setForm({ ...form, expires_at: e.target.value })} /></label></div>{error && <div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="button button-ghost" onClick={() => setModal(false)}>Cancelar</button><button className="button">{form.id ? 'Salvar alterações' : 'Cadastrar produto'}</button></div></form></div></div>}
+      {editing !== undefined && <ProductFormModal
+        product={editing}
+        onClose={() => setEditing(undefined)}
+        onSaved={async () => { setEditing(undefined); await refresh() }}
+      />}
     </div>
   )
 }

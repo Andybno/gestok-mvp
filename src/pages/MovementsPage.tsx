@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { ArrowDownLeft, ArrowUpRight, Filter, PackageOpen, Plus, Repeat2, Search, X } from 'lucide-react'
 import { listMovements, listProducts, registerMovement } from '../lib/api'
+import { ProductCombobox } from '../components/ProductCombobox'
+import { ProductFormModal } from '../components/ProductFormModal'
 import type { Product, StockMovement } from '../types'
 
 const date = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -18,6 +20,7 @@ export function MovementsPage() {
   const [notes, setNotes] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [productModal, setProductModal] = useState<{ open: boolean; name: string }>({ open: false, name: '' })
 
   const refresh = () => Promise.all([listProducts(), listMovements()]).then(([p, m]) => { setProducts(p); setMovements(m) }).finally(() => setLoading(false))
   useEffect(() => { refresh() }, [])
@@ -33,6 +36,7 @@ export function MovementsPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setError('')
+    if (!productId) { setError('Selecione um produto para registrar a movimentação.'); return }
     try {
       await registerMovement({ product_id: productId, type, quantity: Number(quantity), reason, notes })
       setModal(false); await refresh()
@@ -48,7 +52,18 @@ export function MovementsPage() {
         {loading ? <div className="content-loader">Carregando movimentações...</div> : filtered.length ? <div className="responsive-table"><table><thead><tr><th>Data e hora</th><th>Produto</th><th>Tipo</th><th>Quantidade</th><th>Motivo</th><th>Observação</th></tr></thead><tbody>{filtered.map((movement) => <tr key={movement.id}><td className="muted">{date.format(new Date(movement.created_at))}</td><td><div className="product-cell"><span>{(movement.product?.name || 'P').slice(0, 2).toUpperCase()}</span><strong>{movement.product?.name || 'Produto removido'}</strong></div></td><td><span className={`movement-type ${movement.type}`}>{movement.type === 'entry' ? <ArrowDownLeft size={14} /> : movement.type === 'exit' ? <ArrowUpRight size={14} /> : <Repeat2 size={14} />}{movement.type === 'entry' ? 'Entrada' : movement.type === 'exit' ? 'Saída' : 'Ajuste'}</span></td><td><strong className={movement.type}>{movement.type === 'entry' ? '+' : movement.type === 'exit' ? '-' : ''}{movement.quantity.toLocaleString('pt-BR')} {movement.product?.unit}</strong></td><td>{movement.reason}</td><td className="muted">{movement.notes || '—'}</td></tr>)}</tbody></table></div> : <div className="empty-state"><span><PackageOpen size={28} /></span><h3>Nenhuma movimentação</h3><p>Registre uma entrada ou saída para começar o histórico.</p><button className="button" onClick={() => open()}><Plus size={17} /> Nova movimentação</button></div>}
       </section>
 
-      {modal && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-labelledby="movement-modal-title"><div className="modal-heading"><div><span className={`modal-icon ${type}`}><Repeat2 size={20} /></span><div><h2 id="movement-modal-title">Registrar movimentação</h2><p>O saldo do produto será atualizado automaticamente.</p></div></div><button onClick={() => setModal(false)} aria-label="Fechar"><X size={20} /></button></div><form onSubmit={submit} className="modal-form"><div className="movement-type-picker"><button type="button" className={type === 'entry' ? 'active entry' : ''} onClick={() => { setType('entry'); setReason('Compra') }}><ArrowDownLeft /> Entrada</button><button type="button" className={type === 'exit' ? 'active exit' : ''} onClick={() => { setType('exit'); setReason('Produção') }}><ArrowUpRight /> Saída</button><button type="button" className={type === 'adjustment' ? 'active adjustment' : ''} onClick={() => { setType('adjustment'); setReason('Contagem') }}><Repeat2 /> Ajuste</button></div><div className="field-grid"><label className="field full"><span>Produto *</span><select required value={productId} onChange={(e) => setProductId(e.target.value)}><option value="">Selecione um produto</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name} — atual: {product.quantity} {product.unit}</option>)}</select></label><label className="field"><span>{type === 'adjustment' ? 'Novo saldo' : 'Quantidade'} *</span><input required min="0.01" step="0.01" type="number" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} /></label><label className="field"><span>Motivo *</span><select required value={reason} onChange={(e) => setReason(e.target.value)}>{type === 'entry' ? <><option>Compra</option><option>Devolução</option><option>Transferência recebida</option><option>Outro</option></> : type === 'exit' ? <><option>Produção</option><option>Perda / descarte</option><option>Validade</option><option>Transferência enviada</option><option>Outro</option></> : <><option>Contagem</option><option>Correção de cadastro</option><option>Outro</option></>}</select></label><label className="field full"><span>Observação</span><textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Detalhes opcionais desta movimentação" /></label></div>{error && <div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="button button-ghost" onClick={() => setModal(false)}>Cancelar</button><button className="button">Registrar {type === 'entry' ? 'entrada' : type === 'exit' ? 'saída' : 'ajuste'}</button></div></form></div></div>}
+      {modal && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-labelledby="movement-modal-title"><div className="modal-heading"><div><span className={`modal-icon ${type}`}><Repeat2 size={20} /></span><div><h2 id="movement-modal-title">Registrar movimentação</h2><p>O saldo do produto será atualizado automaticamente.</p></div></div><button onClick={() => setModal(false)} aria-label="Fechar"><X size={20} /></button></div><form onSubmit={submit} className="modal-form"><div className="movement-type-picker"><button type="button" className={type === 'entry' ? 'active entry' : ''} onClick={() => { setType('entry'); setReason('Compra') }}><ArrowDownLeft /> Entrada</button><button type="button" className={type === 'exit' ? 'active exit' : ''} onClick={() => { setType('exit'); setReason('Produção') }}><ArrowUpRight /> Saída</button><button type="button" className={type === 'adjustment' ? 'active adjustment' : ''} onClick={() => { setType('adjustment'); setReason('Contagem') }}><Repeat2 /> Ajuste</button></div><div className="field-grid"><div className="field full"><span className="field-label">Produto *</span><ProductCombobox products={products} value={productId} onChange={setProductId} onCreate={(name) => setProductModal({ open: true, name })} /></div><label className="field"><span>{type === 'adjustment' ? 'Novo saldo' : 'Quantidade'} *</span><input required min="0.01" step="0.01" type="number" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} /></label><label className="field"><span>Motivo *</span><select required value={reason} onChange={(e) => setReason(e.target.value)}>{type === 'entry' ? <><option>Compra</option><option>Devolução</option><option>Transferência recebida</option><option>Outro</option></> : type === 'exit' ? <><option>Produção</option><option>Perda / descarte</option><option>Validade</option><option>Transferência enviada</option><option>Outro</option></> : <><option>Contagem</option><option>Correção de cadastro</option><option>Outro</option></>}</select></label><label className="field full"><span>Observação</span><textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Detalhes opcionais desta movimentação" /></label></div>{error && <div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="button button-ghost" onClick={() => setModal(false)}>Cancelar</button><button className="button">Registrar {type === 'entry' ? 'entrada' : type === 'exit' ? 'saída' : 'ajuste'}</button></div></form></div></div>}
+
+      {productModal.open && <ProductFormModal
+        stacked
+        defaultName={productModal.name}
+        onClose={() => setProductModal({ open: false, name: '' })}
+        onSaved={async (product) => {
+          setProductModal({ open: false, name: '' })
+          setProductId(product.id)
+          await refresh()
+        }}
+      />}
     </div>
   )
 }
