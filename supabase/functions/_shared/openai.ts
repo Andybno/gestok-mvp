@@ -29,6 +29,24 @@ export async function imageDataUrl(blob: Blob) {
   return `data:${mimeType};base64,${arrayBufferToBase64(await blob.arrayBuffer())}`
 }
 
+type ResponseOutputPart = { type: string; text?: string }
+type ResponseOutputItem = { type: string; content?: ResponseOutputPart[] }
+
+/**
+ * O campo `output_text` só existe quando a chamada passa pelo SDK oficial da
+ * OpenAI (é calculado por ele). Chamando a Responses API crua via fetch, o
+ * texto vem dentro de output[].content[] — precisa ser extraído manualmente.
+ */
+function extractOutputText(result: { output?: ResponseOutputItem[] }): string {
+  for (const item of result.output ?? []) {
+    if (item.type !== 'message') continue
+    for (const part of item.content ?? []) {
+      if (part.type === 'output_text' && typeof part.text === 'string') return part.text
+    }
+  }
+  throw new Error('A IA não retornou um resultado utilizável.')
+}
+
 type VisionInput = {
   userId: string
   instructions: string
@@ -57,5 +75,5 @@ export async function askVision({ userId, instructions, content, schemaName, sch
   })
   const result = await response.json()
   if (!response.ok) throw new Error(result?.error?.message || 'A análise da imagem falhou.')
-  return { parsed: JSON.parse(result.output_text) as Record<string, unknown>, model }
+  return { parsed: JSON.parse(extractOutputText(result)) as Record<string, unknown>, model }
 }

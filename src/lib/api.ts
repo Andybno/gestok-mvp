@@ -231,6 +231,22 @@ export async function uploadProductPhoto(file: File): Promise<string> {
   return path
 }
 
+/**
+ * supabase.functions.invoke só expõe "Edge Function returned a non-2xx status
+ * code" no erro genérico; a mensagem real (em português) vem no corpo da
+ * resposta. Extrai o corpo quando disponível, senão usa um texto de reserva.
+ */
+async function functionErrorMessage(error: unknown, fallback: string): Promise<string> {
+  const response = error && typeof error === 'object' && 'context' in error && (error as { context: unknown }).context instanceof Response
+    ? (error as { context: Response }).context
+    : null
+  if (response) {
+    const payload = await response.clone().json().catch(() => null) as { error?: string } | null
+    if (payload?.error) return payload.error
+  }
+  return fallback
+}
+
 export async function describeProductPhoto(path: string): Promise<{ signature: ProductVisualSignature; model: string }> {
   if (!isSupabaseConfigured || !supabase) {
     await new Promise((resolve) => setTimeout(resolve, 1400))
@@ -240,7 +256,7 @@ export async function describeProductPhoto(path: string): Promise<{ signature: P
     }
   }
   const { data, error } = await supabase.functions.invoke('describe-product-photo', { body: { path } })
-  if (error) throw error
+  if (error) throw new Error(await functionErrorMessage(error, 'Não foi possível gerar a ficha visual desta foto.'))
   return data as { signature: ProductVisualSignature; model: string }
 }
 
@@ -282,7 +298,7 @@ export async function analyzeInventoryImage(file: File): Promise<InventoryScanRe
   const { error: uploadError } = await supabase.storage.from('inventory-scans').upload(path, file)
   if (uploadError) throw uploadError
   const { data, error } = await supabase.functions.invoke('analyze-inventory-image', { body: { path } })
-  if (error) throw error
+  if (error) throw new Error(await functionErrorMessage(error, 'Não foi possível analisar esta imagem.'))
   return { items: data.items as InventoryScanItem[], scan_id: data.scan_id ?? null }
 }
 
