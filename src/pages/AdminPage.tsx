@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Activity, ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Box, CalendarDays, CheckCircle2, ChevronRight, Clock3, Eye, Filter, LogOut, Megaphone, MousePointerClick, PackageCheck, PencilLine, RotateCcw, Search, ShieldCheck, UserMinus, UserPlus, Users, X } from 'lucide-react'
+import { Activity, ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Bot, Box, CalendarDays, CheckCircle2, ChevronRight, Clock3, Eye, FileImage, Filter, LogOut, Megaphone, MousePointerClick, PackageCheck, PencilLine, RotateCcw, Save, Search, ShieldCheck, SlidersHorizontal, UserMinus, UserPlus, Users, X } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Brand } from '../components/Brand'
 import { useAuth } from '../context/AuthContext'
-import { completeUserOnboarding, getAdminOverview, getAdminUserDetail, setAdminAdCampaignMetrics, setAdminDiagnosticAnalyticsExclusion, setAdminUserAnalyticsExclusion } from '../lib/api'
-import type { AdminDiagnosticSession, AdminOverview, AdminUserDetail, AdminUserSummary, LeadFormData } from '../types'
+import { completeUserOnboarding, getAdminOverview, getAdminUserDetail, listAdminInventoryScans, listAiPromptConfigs, setAdminAdCampaignMetrics, setAdminDiagnosticAnalyticsExclusion, setAdminUserAnalyticsExclusion, updateAiPromptConfig } from '../lib/api'
+import type { AdminDiagnosticSession, AdminOverview, AdminUserDetail, AdminUserSummary, AiPromptConfig, InventoryScan, LeadFormData } from '../types'
 
 type FunnelParticipant = {
   id: string
@@ -120,6 +120,10 @@ export function AdminPage() {
   const [adMetricsDraft, setAdMetricsDraft] = useState({ reach: '0', impressions: '0', link_clicks: '0' })
   const [search, setSearch] = useState('')
   const [expandedFunnelKey, setExpandedFunnelKey] = useState<string | null>(null)
+  const [scans, setScans] = useState<InventoryScan[]>([])
+  const [prompts, setPrompts] = useState<AiPromptConfig[]>([])
+  const [promptDrafts, setPromptDrafts] = useState<Record<string, string>>({})
+  const [savingPrompt, setSavingPrompt] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [subscriptionFilter, setSubscriptionFilter] = useState<'all' | AdminUserSummary['subscription_status']>('all')
   const [onboardingFilter, setOnboardingFilter] = useState<'all' | AdminUserSummary['onboarding_status']>('all')
@@ -135,6 +139,13 @@ export function AdminPage() {
       setOverview(next)
       setAdMetricsDraft({ reach: String(next.ad_metrics?.reach || 0), impressions: String(next.ad_metrics?.impressions || 0), link_clicks: String(next.ad_metrics?.link_clicks || 0) })
     }).catch((cause) => setError(cause instanceof Error ? cause.message : 'Não foi possível carregar o painel.'))
+  }, [])
+
+  useEffect(() => {
+    Promise.all([listAdminInventoryScans(), listAiPromptConfigs()]).then(([nextScans, nextPrompts]) => {
+      setScans(nextScans); setPrompts(nextPrompts)
+      setPromptDrafts(Object.fromEntries(nextPrompts.map((prompt) => [prompt.key, prompt.prompt])))
+    }).catch((cause) => setError(cause instanceof Error ? cause.message : 'Não foi possível carregar os dados da IA.'))
   }, [])
 
   const activeUsers = useMemo(() => (overview?.users || []).filter((user) => !user.excluded_from_analytics), [overview])
@@ -270,6 +281,21 @@ export function AdminPage() {
 
   const leave = async () => { await signOut(); navigate('/') }
 
+  const savePrompt = async (prompt: AiPromptConfig) => {
+    const nextValue = promptDrafts[prompt.key]?.trim()
+    if (!nextValue) return
+    setSavingPrompt(prompt.key); setError('')
+    try {
+      await updateAiPromptConfig(prompt.key, nextValue)
+      const nextPrompts = await listAiPromptConfigs()
+      setPrompts(nextPrompts); setPromptDrafts(Object.fromEntries(nextPrompts.map((item) => [item.key, item.prompt])))
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível salvar o prompt.') }
+    finally { setSavingPrompt(null) }
+  }
+
+  const scanUser = (scan: InventoryScan) => overview?.users.find((user) => user.id === scan.user_id)
+  const scanStatus = (scan: InventoryScan) => ({ processing: 'Processando', completed: 'Aguardando confirmação', needs_new_photo: 'Nova foto solicitada', confirmed: 'Confirmada', failed: 'Falhou' }[scan.status])
+
   if (!overview && !error) return <div className="app-loader"><span /><p>Preparando indicadores administrativos...</p></div>
 
   const base = Math.max(overview?.started || 0, 1)
@@ -357,6 +383,19 @@ export function AdminPage() {
             </div>
             {editingAdMetrics && <form className="admin-ad-form" onSubmit={saveAdMetrics}><label>Alcance<input type="number" min="0" inputMode="numeric" value={adMetricsDraft.reach} onChange={(event) => setAdMetricsDraft((current) => ({ ...current, reach: event.target.value }))} /></label><label>Impressões<input type="number" min="0" inputMode="numeric" value={adMetricsDraft.impressions} onChange={(event) => setAdMetricsDraft((current) => ({ ...current, impressions: event.target.value }))} /></label><label>Cliques no link<input type="number" min="0" inputMode="numeric" value={adMetricsDraft.link_clicks} onChange={(event) => setAdMetricsDraft((current) => ({ ...current, link_clicks: event.target.value }))} /></label><button className="button button-sm" disabled={savingAdMetrics}>{savingAdMetrics ? 'Salvando...' : 'Salvar métricas'}</button></form>}
             <p className="admin-ad-note">As visitas são contadas automaticamente quando a URL contém UTMs da campanha ou identificador da Meta. Alcance, impressões e cliques oficiais podem ser copiados do Gerenciador de Anúncios; a sincronização automática exige acesso à Marketing API.</p>
+          </section>
+
+          <section className="admin-beta-grid">
+            <article className="panel admin-ai-usage-panel">
+              <div className="panel-heading"><div><span className="stat-icon purple"><Bot /></span><div><h2>Uso da contagem por IA</h2><p>Fotos, avaliações e confirmações mais recentes do piloto.</p></div></div><span className="admin-record-count">{scans.length} análises</span></div>
+              <div className="admin-scan-metrics"><div><small>Referências de produto</small><strong>{scans.filter((scan) => scan.action === 'product_setup').length}</strong></div><div><small>Fotos de contagem</small><strong>{scans.filter((scan) => scan.action === 'inventory_count').length}</strong></div><div><small>Contagens confirmadas</small><strong>{scans.filter((scan) => scan.status === 'confirmed').length}</strong></div><div><small>Fotos rejeitadas</small><strong>{scans.filter((scan) => scan.status === 'needs_new_photo').length}</strong></div></div>
+              {scans.length ? <div className="admin-scan-feed">{scans.slice(0, 6).map((scan) => { const user = scanUser(scan); return <button key={scan.id} onClick={() => user && void openUser(user.id)}>{scan.image_url ? <img src={scan.image_url} alt="Foto enviada para análise" /> : <span className="scan-placeholder"><FileImage /></span>}<span><strong>{user?.full_name || 'Usuário'}</strong><small>{scan.action === 'product_setup' ? 'Referência visual' : 'Contagem do estoque'} · {scan.image_paths?.length || 1} foto(s)</small></span><em className={`scan-status ${scan.status}`}>{scanStatus(scan)}</em><Eye /></button> })}</div> : <p className="admin-empty-copy">Nenhuma foto foi analisada ainda.</p>}
+            </article>
+
+            <article className="panel admin-prompts-panel">
+              <div className="panel-heading"><div><span className="stat-icon green"><SlidersHorizontal /></span><div><h2>Prompts da jornada</h2><p>Edite as instruções usadas em cada etapa da IA.</p></div></div></div>
+              <div className="admin-prompt-list">{prompts.map((prompt) => <details key={prompt.key}><summary><span><strong>{prompt.label}</strong><small>{prompt.description}</small></span><em>v{prompt.version}</em></summary><textarea value={promptDrafts[prompt.key] || ''} onChange={(event) => setPromptDrafts((current) => ({ ...current, [prompt.key]: event.target.value }))} /><div><small>Última alteração: {fullDate.format(new Date(prompt.updated_at))}</small><button className="button button-sm" disabled={savingPrompt === prompt.key || promptDrafts[prompt.key]?.trim() === prompt.prompt} onClick={() => void savePrompt(prompt)}>{savingPrompt === prompt.key ? 'Salvando...' : <><Save /> Salvar nova versão</>}</button></div></details>)}</div>
+            </article>
           </section>
 
           <section className="admin-grid">
@@ -503,6 +542,10 @@ export function AdminPage() {
             <section className="admin-detail-section"><h3>Respostas do diagnóstico</h3>{detail.lead ? <div className="admin-answer-grid">{answerLabels.map(([key, label]) => <div key={key}><small>{label}</small><strong>{answerValue(detail.lead?.[key])}</strong></div>)}</div> : <p className="admin-empty-copy">Este usuário não possui diagnóstico vinculado.</p>}</section>
 
             <section className="admin-detail-section"><h3>Produtos cadastrados <span>{detail.products.length}</span></h3>{detail.products.length ? <div className="admin-detail-table"><table><thead><tr><th>Produto</th><th>Saldo</th><th>Mínimo</th><th>Valor</th></tr></thead><tbody>{detail.products.map((product) => <tr key={product.id}><td><strong>{product.name}</strong><small>{product.category} · {product.sku || 'Sem SKU'}</small></td><td>{product.quantity} {product.unit}</td><td>{product.minimum_stock} {product.unit}</td><td>{money.format(product.quantity * product.unit_cost)}</td></tr>)}</tbody></table></div> : <p className="admin-empty-copy">Nenhum produto cadastrado.</p>}</section>
+
+            <section className="admin-detail-section"><h3>Jornada e eventos de uso <span>{detail.journey_events.length}</span></h3>{detail.journey_events.length ? <div className="admin-journey-list">{detail.journey_events.map((event) => <div key={event.id}><span /><div><strong>{event.event_name.replaceAll('_', ' ')}</strong><small>{fullDate.format(new Date(event.created_at))}</small><code>{JSON.stringify(event.metadata)}</code></div></div>)}</div> : <p className="admin-empty-copy">Nenhum evento da nova jornada foi registrado.</p>}</section>
+
+            <section className="admin-detail-section"><h3>Fotos e respostas da IA <span>{detail.inventory_scans.length}</span></h3>{detail.inventory_scans.length ? <div className="admin-user-scans">{detail.inventory_scans.map((scan) => <article key={scan.id}><div className="admin-user-scan-images">{(scan.image_urls?.length ? scan.image_urls : scan.image_url ? [scan.image_url] : []).map((url, index) => <a href={url} target="_blank" rel="noreferrer" key={url}><img src={url} alt={`Foto ${index + 1} da análise`} /><small>Foto {index + 1}</small></a>)}{!scan.image_url && !scan.image_urls?.length && <span className="scan-placeholder"><FileImage /></span>}</div><div className="admin-user-scan-copy"><div><span className={`scan-status ${scan.status}`}>{scanStatus(scan)}</span><time>{fullDate.format(new Date(scan.created_at))}</time></div><strong>{scan.action === 'product_setup' ? 'Cadastro da referência visual' : 'Contagem do estoque'}</strong><p>{scan.quality_response?.reason || scan.error_message || 'Sem avaliação de qualidade registrada.'}</p>{scan.quality_response?.guidance && <small>Orientação: {scan.quality_response.guidance}</small>}{scan.items?.[0] && <div className="admin-ai-result"><b>{scan.items[0].estimated_quantity} {scan.items[0].unit}</b><span>{Math.round(scan.items[0].confidence * 100)}% de confiança</span><p>{scan.items[0].visual_evidence || scan.items[0].note}</p></div>}<details><summary>Resposta completa e prompts usados</summary><pre>{JSON.stringify({ resposta_ia: scan.ai_response, prompts: scan.prompt_snapshot, modelo: scan.model }, null, 2)}</pre></details></div></article>)}</div> : <p className="admin-empty-copy">Este usuário ainda não enviou fotos para a IA.</p>}</section>
 
             <section className="admin-detail-section"><h3>Movimentações recentes <span>{detail.movements.length}</span></h3>{detail.movements.length ? <div className="admin-detail-table"><table><thead><tr><th>Data</th><th>Produto</th><th>Tipo</th><th>Quantidade</th></tr></thead><tbody>{detail.movements.map((movement) => <tr key={movement.id}><td>{fullDate.format(new Date(movement.created_at))}</td><td><strong>{movement.product?.name || 'Produto'}</strong></td><td>{movement.type === 'entry' ? 'Entrada' : movement.type === 'exit' ? 'Saída' : 'Ajuste'}</td><td>{movement.quantity} {movement.product?.unit}</td></tr>)}</tbody></table></div> : <p className="admin-empty-copy">Nenhuma movimentação registrada.</p>}</section>
           </div>

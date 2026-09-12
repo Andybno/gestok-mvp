@@ -1,4 +1,4 @@
-import type { AdminDiagnosticSession, AdminOverview, AdminUserDetail, AdminUserSummary, Product, StockMovement } from '../types'
+import type { AdminDiagnosticSession, AdminOverview, AdminUserDetail, AdminUserSummary, AiPromptConfig, InventoryScan, Product, ProductJourneyEvent, StockMovement } from '../types'
 
 const ago = (days: number, hours = 0) => new Date(Date.now() - (days * 24 + hours) * 3600000).toISOString()
 const ahead = (days: number, hours = 0) => new Date(Date.now() + (days * 24 + hours) * 3600000).toISOString()
@@ -92,5 +92,35 @@ export function demoAdminUserDetail(userId: string): AdminUserDetail {
     },
     products,
     movements: movementsFor(user, products),
+    inventory_scans: demoInventoryScans(user, products),
+    journey_events: demoJourneyEvents(user, products),
   }
+}
+
+function demoInventoryScans(user: AdminUserSummary, products: Product[]): InventoryScan[] {
+  if (!products.length) return []
+  return [{
+    id: `${user.id}-scan-1`, user_id: user.id, product_id: products[0].id, action: 'inventory_count',
+    original_filename: 'prateleira-demo.jpg', image_path: null, image_paths: [], items: [{ name: products[0].name, estimated_quantity: 18, unit: products[0].unit, confidence: .91, visual_evidence: '18 embalagens visíveis.', note: 'Resultado revisado pelo usuário.' }],
+    quality_response: { acceptable: true, score: .94, reason: 'Foto nítida.', guidance: 'Adequada para contagem.' }, ai_response: { count: { estimated_quantity: 18, confidence: .91 } },
+    prompt_snapshot: {}, model: 'gpt-5.4', status: 'confirmed', image_review_consent: true, accepted_quantity: 18, confirmed_at: ago(0, 2), created_at: ago(0, 2),
+  }]
+}
+
+function demoJourneyEvents(user: AdminUserSummary, products: Product[]): ProductJourneyEvent[] {
+  if (!products.length) return []
+  return [
+    { id: `${user.id}-event-1`, user_id: user.id, event_name: 'inventory_count_confirmed', metadata: { product_id: products[0].id, quantity: 18 }, created_at: ago(0, 2) },
+    { id: `${user.id}-event-2`, user_id: user.id, event_name: 'product_created', metadata: { product_id: products[0].id, photo_count: 3 }, created_at: ago(1) },
+  ]
+}
+
+export function demoAiPrompts(): AiPromptConfig[] {
+  const now = new Date().toISOString()
+  return [
+    { key: 'product_photo_quality', label: 'Qualidade das fotos do produto', description: 'Valida o conjunto de referências visuais.', prompt: 'Avalie a nitidez, a iluminação, os ângulos e se todas as fotos mostram o mesmo produto antes de aprovar o conjunto.', version: 1, updated_at: now },
+    { key: 'product_profile', label: 'Perfil visual do produto', description: 'Consolida os ângulos em uma referência.', prompt: 'Crie um perfil visual fiel ao conjunto de fotos, sem inventar atributos que não estejam visíveis nas imagens enviadas.', version: 1, updated_at: now },
+    { key: 'count_photo_quality', label: 'Qualidade da foto de contagem', description: 'Valida a foto da prateleira.', prompt: 'Avalie iluminação, foco, obstáculos e enquadramento para decidir se a fotografia permite uma contagem confiável.', version: 1, updated_at: now },
+    { key: 'inventory_count', label: 'Contagem do estoque', description: 'Conta o produto selecionado.', prompt: 'Conte somente o produto selecionado usando o perfil visual e explique as evidências que sustentam a quantidade encontrada.', version: 1, updated_at: now },
+  ]
 }

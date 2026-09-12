@@ -102,7 +102,7 @@ export function ProductCountModal({ product, onClose, onApplied }: Props) {
         </div>
         <div className="modal-form">
           <div className="count-target">
-            <ProductThumb name={product.name} photoPath={product.photo_path} />
+            <ProductThumb name={product.name} photoPath={product.photo_path} referencePhotoPath={product.reference_image_path || product.reference_image_paths?.[0]} />
             <div><strong>{product.name}</strong><small>Estoque atual: {product.quantity.toLocaleString('pt-BR')} {product.unit}</small></div>
           </div>
 

@@ -23,11 +23,25 @@ export type Product = {
   minimum_stock: number
   unit_cost: number
   expires_at?: string | null
+  reference_image_path?: string | null
+  reference_image_paths?: string[]
+  ai_identity_profile?: ProductIdentityProfile | null
+  ai_profile_scan_id?: string | null
   created_at?: string
   photo_path?: string | null
   visual_signature?: ProductVisualSignature | null
   signature_model?: string | null
   signature_updated_at?: string | null
+}
+
+export type ProductIdentityProfile = {
+  category: string
+  suggested_unit: string
+  brand: string
+  packaging: string
+  colors: string[]
+  visual_markers: string[]
+  counting_guidance: string
 }
 
 export type StockMovement = {
@@ -56,6 +70,7 @@ export type Profile = {
   onboarding_scheduled_at?: string | null
   onboarding_completed_at?: string | null
   onboarding_booking_uid?: string | null
+  first_use_completed_at?: string | null
 }
 
 export type LeadFormData = {
@@ -91,6 +106,7 @@ export type InventoryScanItem = {
   /** Produto do catálogo reconhecido pela IA. Nulo = item ainda não cadastrado. */
   product_id?: string | null
   match_confidence?: number
+  visual_evidence?: string
 }
 
 export type InventoryScanResult = {
@@ -122,6 +138,63 @@ export type ProductCountResult = {
   scan_id: string | null
 }
 
+export type PhotoQualityAssessment = {
+  acceptable: boolean
+  score: number
+  reason: string
+  guidance: string
+}
+
+export type InventoryImageAnalysis = {
+  scan_id: string
+  action: 'product_setup' | 'inventory_count'
+  image_path: string
+  image_paths: string[]
+  quality: PhotoQualityAssessment
+  items: InventoryScanItem[]
+  product_profile?: ProductIdentityProfile
+}
+
+export type InventoryScan = {
+  id: string
+  user_id: string
+  product_id?: string | null
+  action: 'product_setup' | 'inventory_count'
+  original_filename?: string | null
+  image_path?: string | null
+  image_paths?: string[]
+  image_url?: string | null
+  image_urls?: string[]
+  quality_response?: PhotoQualityAssessment | null
+  items: InventoryScanItem[]
+  ai_response?: Record<string, unknown> | null
+  prompt_snapshot?: Record<string, string> | null
+  model?: string | null
+  status: 'processing' | 'completed' | 'needs_new_photo' | 'confirmed' | 'failed'
+  image_review_consent: boolean
+  accepted_quantity?: number | null
+  confirmed_at?: string | null
+  error_message?: string | null
+  created_at: string
+}
+
+export type AiPromptConfig = {
+  key: 'product_photo_quality' | 'product_profile' | 'count_photo_quality' | 'inventory_count'
+  label: string
+  description: string
+  prompt: string
+  version: number
+  updated_at: string
+}
+
+export type ProductJourneyEvent = {
+  id: string
+  user_id: string
+  event_name: string
+  metadata: Record<string, unknown>
+  created_at: string
+}
+
 export type AdminFunnelStep = {
   key: string
   label: string
@@ -143,6 +216,7 @@ export type AdminUserSummary = {
   onboarding_completed_at?: string | null
   onboarding_booking_uid?: string | null
   excluded_from_analytics: boolean
+  first_use_completed_at?: string | null
 }
 
 export type AdminAdMetrics = {
@@ -190,4 +264,6 @@ export type AdminUserDetail = {
   lead: (Partial<LeadFormData> & { created_at?: string }) | null
   products: Product[]
   movements: StockMovement[]
+  inventory_scans: InventoryScan[]
+  journey_events: ProductJourneyEvent[]
 }

@@ -1,86 +1,106 @@
+import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders, json, safeError } from '../_shared/http.ts'
 import { requireAppAccess } from '../_shared/access.ts'
 import { askVision, imageDataUrl } from '../_shared/openai.ts'
 import { adminClient, requireUser } from '../_shared/supabase.ts'
 
+type PromptKey = 'product_photo_quality' | 'product_profile' | 'count_photo_quality' | 'inventory_count'
+type GuidedAction = 'product_setup' | 'inventory_count'
+
 /** Teto de produtos enviados no prompt, para manter custo e latência previsíveis. */
 const CATALOG_LIMIT = 120
 
-const INSTRUCTIONS = `Você é especialista em contagem de estoque de restaurantes e food service. Sua tarefa é transformar uma foto de prateleira, câmara fria ou despensa em uma contagem confiável, item por item.
+const fallbackPrompts: Record<PromptKey, string> = {
+  product_photo_quality: 'Avalie em conjunto de 1 a 5 fotos obrigatórias do mesmo produto. Aprove somente quando todas representarem o mesmo item e ao menos uma mostrar frente ou rótulo com nitidez, boa iluminação e enquadramento útil. Valorize ângulos complementares, como laterais, verso, tampa e detalhes. Reprove conjuntos incoerentes, escuros, desfocados, distantes ou muito encobertos. Explique o motivo e como refazer ou complementar as fotos.',
+  product_profile: 'Consolide de 1 a 5 fotos do mesmo produto em um único perfil visual padronizado. Use os diferentes ângulos para registrar somente características realmente visíveis: marca legível, embalagem, cores, textos, símbolos, tampa e marcadores distintivos. Sugira categoria e unidade. Não invente informações encobertas e não confunda produtos parecidos.',
+  count_photo_quality: 'Avalie se a foto permite contar o produto selecionado. Considere iluminação, nitidez, distância, sobreposição, obstáculos, cortes e área completa. Reprove quando unidades não puderem ser distinguidas e explique objetivamente como refazer.',
+  inventory_count: 'Conte exclusivamente o produto selecionado usando seu perfil visual. Considere apenas unidades realmente visíveis, não some itens parecidos e não estime produtos totalmente escondidos. Informe incertezas, confiança e evidências visuais. O usuário revisará o resultado.',
+}
 
-CONTAGEM
-- Conte apenas produtos ou insumos de estoque realmente visíveis. Ignore pessoas, preços, etiquetas de prateleira, espaços vazios e prateleiras sem produto.
-- Agrupe embalagens idênticas do mesmo produto em um único item do array, somando a quantidade total visível delas.
-- Itens empilhados ou parcialmente encobertos: estime o total observando o padrão de empilhamento (ex.: uma fileira de frente com 6 unidades e mais 2 fileiras idênticas atrás sugerem cerca de 18), mas reduza "confidence" e explique a estimativa em "note". Nunca finja certeza sobre o que está oculto.
-- Não conte a mesma unidade duas vezes por causa de reflexo em vidro, aço inox, plástico ou espelho.
-- Produtos a granel ou vendidos por peso (hortifruti solto, grãos em bin): estime o peso total pelo volume ocupado no recipiente, na unidade mais adequada entre as permitidas.
-- Uma caixa ou fardo fechado com quantidade de unidades impressa no rótulo conta como aquela quantidade de unidades — não como "1 caixa" — a menos que o catálogo do cliente já cadastre a caixa fechada como a própria unidade de estoque.
-
-RECONHECIMENTO DO CATÁLOGO
-- Você pode receber o catálogo de produtos deste cliente: nome, categoria, unidade e uma ficha visual (marca, tipo e tamanho da embalagem, cores dominantes, texto do rótulo, formato, marcas distintivas).
-- Compare marca, cores, formato da embalagem, tamanho e texto do rótulo visível contra a ficha visual para decidir se um item da foto é aquele produto do catálogo.
-- Só preencha "product_id" quando a correspondência for clara nesses atributos visuais. Diante de dúvida razoável — marca genérica parecida, variação de sabor ou tamanho não descrita na ficha, rótulo ilegível, foto de baixa qualidade — deixe "product_id" vazio mesmo que o nome pareça bater, e explique o motivo em "note".
-- Nunca associe dois itens diferentes da imagem ao mesmo "product_id".
-- "match_confidence" reflete apenas a certeza do casamento com o catálogo; "confidence" reflete apenas a certeza da contagem em si. São independentes: pode haver contagem certa de um item não reconhecido, ou reconhecimento certo de uma contagem incerta.
-
-GERAL
-- Não invente marca, sabor, tamanho ou qualquer informação que não esteja visível na imagem.
-- Responda sempre em português do Brasil. Nomeie cada item como aparece no rótulo, ou de forma genérica e descritiva quando o rótulo não for legível.`
-
-const FOCUS_INSTRUCTIONS = `Você está contando o estoque de UM ÚNICO produto específico. A ficha visual desse produto (marca, tipo e tamanho da embalagem, cores dominantes, texto do rótulo, formato, marcas distintivas) está descrita no texto a seguir.
-
-CONTAGEM
-- Conte apenas as unidades deste produto exato, realmente visíveis na foto.
-- Ignore completamente qualquer outro produto, embalagem ou insumo que apareça na imagem, mesmo que pareça fazer parte do mesmo estoque — não os conte, não os mencione, não deixe que influenciem a contagem.
-- Agrupe embalagens idênticas deste produto, somando a quantidade total visível.
-- Itens empilhados ou parcialmente encobertos: estime o total observando o padrão de empilhamento, mas reduza "confidence" e explique a estimativa em "note". Nunca finja certeza sobre o que está oculto.
-- Não conte a mesma unidade duas vezes por causa de reflexo em vidro, aço inox, plástico ou espelho.
-- Se este produto for vendido a granel ou por peso, estime o total pelo volume ocupado no recipiente.
-- Uma caixa ou fardo fechado com quantidade de unidades impressa no rótulo conta como aquela quantidade de unidades, não como "1 caixa".
-
-RECONHECIMENTO
-- Compare marca, cores, formato da embalagem, tamanho e texto do rótulo visível contra a ficha para confirmar que é este produto e não um parecido.
-- Se este produto não aparecer claramente na foto, marque "visible" como falso e "estimated_quantity" como 0 — nunca adivinhe.
-
-GERAL
-- Não invente marca, sabor, tamanho ou qualquer informação que não esteja visível na imagem.
-- Responda sempre em português do Brasil.`
-
-const FOCUS_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['visible', 'estimated_quantity', 'unit', 'confidence', 'note'],
+const QUALITY_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['acceptable', 'score', 'reason', 'guidance'],
   properties: {
-    visible: { type: 'boolean', description: 'Se este produto específico aparece claramente na foto.' },
-    estimated_quantity: { type: 'number', minimum: 0, description: 'Quantidade total estimada deste produto visível na foto. Zero quando não aparecer.' },
-    unit: { type: 'string', enum: ['un', 'kg', 'g', 'l', 'ml', 'cx', 'pct'] },
-    confidence: { type: 'number', minimum: 0, maximum: 1 },
-    note: { type: 'string', description: 'Observação curta: motivo da incerteza, oclusão, granel, ou por que o produto não foi encontrado na foto.' },
+    acceptable: { type: 'boolean' }, score: { type: 'number', minimum: 0, maximum: 1 },
+    reason: { type: 'string' }, guidance: { type: 'string' },
   },
 }
 
-function countSchema(productIds: string[]) {
+const PRODUCT_PROFILE_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['category', 'suggested_unit', 'brand', 'packaging', 'colors', 'visual_markers', 'counting_guidance'],
+  properties: {
+    category: { type: 'string' },
+    suggested_unit: { type: 'string', enum: ['un', 'kg', 'g', 'l', 'ml', 'cx', 'pct'] },
+    brand: { type: 'string' }, packaging: { type: 'string' },
+    colors: { type: 'array', items: { type: 'string' } },
+    visual_markers: { type: 'array', items: { type: 'string' } },
+    counting_guidance: { type: 'string' },
+  },
+}
+
+const GUIDED_COUNT_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['estimated_quantity', 'unit', 'confidence', 'note', 'visual_evidence'],
+  properties: {
+    estimated_quantity: { type: 'number', minimum: 0 },
+    unit: { type: 'string', enum: ['un', 'kg', 'g', 'l', 'ml', 'cx', 'pct'] },
+    confidence: { type: 'number', minimum: 0, maximum: 1 },
+    note: { type: 'string' }, visual_evidence: { type: 'string' },
+  },
+}
+
+const INSTRUCTIONS = `Você é especialista em contagem de estoque de restaurantes e food service. Transforme uma foto de prateleira, câmara fria ou despensa em uma contagem confiável, item por item.
+
+CONTAGEM
+- Conte apenas produtos ou insumos realmente visíveis. Ignore pessoas, preços, etiquetas, espaços vazios e prateleiras sem produto.
+- Agrupe embalagens idênticas, somando a quantidade total visível.
+- Para itens empilhados ou parcialmente encobertos, estime pelo padrão de empilhamento, reduza "confidence" e explique em "note". Nunca finja certeza sobre o que está oculto.
+- Não conte a mesma unidade duas vezes por reflexos.
+- Para produtos a granel ou vendidos por peso, estime o peso total pelo volume no recipiente.
+- Uma caixa ou fardo fechado com quantidade impressa conta como aquela quantidade, salvo se o catálogo cadastrar a caixa como unidade.
+
+RECONHECIMENTO
+- Compare marca, cores, embalagem, tamanho e texto do rótulo com a ficha visual.
+- Só preencha "product_id" quando a correspondência for clara. Em dúvida, deixe vazio e explique.
+- Nunca associe dois itens diferentes ao mesmo "product_id".
+- "match_confidence" mede o casamento com o catálogo; "confidence" mede a certeza da contagem.
+
+Não invente informações e responda sempre em português do Brasil.`
+
+const FOCUS_INSTRUCTIONS = `Conte UM ÚNICO produto específico, descrito pela ficha visual fornecida.
+- Conte apenas unidades deste produto exato e ignore todos os outros itens.
+- Compare marca, cores, embalagem, tamanho e rótulo com a ficha visual.
+- Some embalagens idênticas. Para itens encobertos, reduza a confiança e explique.
+- Não duplique reflexos. Para produtos a granel, estime pelo volume.
+- Se o produto não aparecer claramente, marque "visible" como falso e quantidade 0.
+- Não invente informações e responda em português do Brasil.`
+
+const FOCUS_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['visible', 'estimated_quantity', 'unit', 'confidence', 'note'],
+  properties: {
+    visible: { type: 'boolean' }, estimated_quantity: { type: 'number', minimum: 0 },
+    unit: { type: 'string', enum: ['un', 'kg', 'g', 'l', 'ml', 'cx', 'pct'] },
+    confidence: { type: 'number', minimum: 0, maximum: 1 }, note: { type: 'string' },
+  },
+}
+
+function catalogCountSchema(productIds: string[]) {
   return {
-    type: 'object',
-    additionalProperties: false,
-    required: ['items'],
+    type: 'object', additionalProperties: false, required: ['items'],
     properties: {
       items: {
         type: 'array',
         items: {
-          type: 'object',
-          additionalProperties: false,
+          type: 'object', additionalProperties: false,
           required: ['name', 'product_id', 'match_confidence', 'estimated_quantity', 'unit', 'confidence', 'note'],
           properties: {
-            name: { type: 'string', description: 'Nome do item como aparece no rótulo, ou descritivo genérico se ilegível. Um item por tipo de embalagem, já somando as unidades agrupadas.' },
-            // O enum restringe a resposta aos produtos reais do cliente: o modo
-            // strict impede que o modelo invente um id inexistente.
-            product_id: { type: 'string', enum: [...productIds, ''], description: 'Id do produto do catálogo que corresponde a este item, só quando marca, embalagem e rótulo baterem claramente com a ficha visual. String vazia quando não houver correspondência clara — nunca chute.' },
-            match_confidence: { type: 'number', minimum: 0, maximum: 1, description: 'Certeza de que product_id é o produto correto do catálogo (não a certeza da contagem).' },
-            estimated_quantity: { type: 'number', minimum: 0, description: 'Quantidade total estimada deste item já visível na foto, somando itens agrupados e estimativas de itens parcialmente encobertos.' },
-            unit: { type: 'string', enum: ['un', 'kg', 'g', 'l', 'ml', 'cx', 'pct'], description: 'Unidade de medida da quantidade estimada.' },
-            confidence: { type: 'number', minimum: 0, maximum: 1, description: 'Certeza da contagem em si (não da correspondência com o catálogo). Reduza para itens empilhados, encobertos ou a granel.' },
-            note: { type: 'string', description: 'Observação curta em português: motivo da incerteza, oclusão, granel, ou por que não houve correspondência no catálogo. Vazio quando não houver nada a destacar.' },
+            name: { type: 'string' }, product_id: { type: 'string', enum: [...productIds, ''] },
+            match_confidence: { type: 'number', minimum: 0, maximum: 1 },
+            estimated_quantity: { type: 'number', minimum: 0 },
+            unit: { type: 'string', enum: ['un', 'kg', 'g', 'l', 'ml', 'cx', 'pct'] },
+            confidence: { type: 'number', minimum: 0, maximum: 1 }, note: { type: 'string' },
           },
         },
       },
@@ -88,103 +108,175 @@ function countSchema(productIds: string[]) {
   }
 }
 
+async function guidedAnalysis(input: {
+  admin: SupabaseClient
+  userId: string
+  body: Record<string, unknown>
+  action: GuidedAction
+  onScanCreated: (scanId: string) => void
+}) {
+  const { admin, userId, body, action, onScanCreated } = input
+  const rawPaths = Array.isArray(body.paths) ? body.paths : body.path ? [body.path] : []
+  const paths = rawPaths.map(String).filter(Boolean).slice(0, 5)
+  const productId = body.productId ? String(body.productId) : null
+  const productName = String(body.productName || '').trim()
+
+  if (!paths.length || paths.some((path) => !path.startsWith(`${userId}/`))) throw new Error('Imagem inválida para esta conta.')
+  if (action === 'product_setup' && !productName) throw new Error('Informe o nome do produto antes de analisar as fotos.')
+  if (action === 'inventory_count' && paths.length !== 1) throw new Error('Envie uma foto por contagem.')
+  if (body.imageReviewConsent !== true) throw new Error('Confirme o uso da imagem para continuar.')
+  await requireAppAccess(admin, userId, 'Seu acesso à ferramenta ainda não está disponível.')
+
+  const images = await Promise.all(paths.map(async (path) => {
+    const { data: blob, error } = await admin.storage.from('inventory-scans').download(path)
+    if (error || !blob) throw new Error('Não foi possível ler uma das imagens enviadas.')
+    return imageDataUrl(blob)
+  }))
+
+  const neededKeys: PromptKey[] = action === 'product_setup'
+    ? ['product_photo_quality', 'product_profile'] : ['count_photo_quality', 'inventory_count']
+  const { data: promptRows } = await admin.from('ai_prompt_configs').select('key,prompt,version').in('key', neededKeys)
+  const prompts = Object.fromEntries(neededKeys.map((key) => {
+    const row = promptRows?.find((item) => item.key === key)
+    return [key, { prompt: row?.prompt || fallbackPrompts[key], version: row?.version || 1 }]
+  })) as Record<PromptKey, { prompt: string; version: number }>
+  const promptSnapshot = Object.fromEntries(neededKeys.map((key) => [key, prompts[key].prompt]))
+
+  const { data: scan, error: scanError } = await admin.from('inventory_scans').insert({
+    user_id: userId, product_id: productId, action,
+    original_filename: paths.map((path) => path.split('/').pop()).join(', '),
+    image_path: paths[0], image_paths: paths, image_review_consent: true,
+    prompt_snapshot: promptSnapshot, status: 'processing',
+  }).select('id').single()
+  if (scanError || !scan) throw new Error('Não foi possível iniciar o registro da análise.')
+  onScanCreated(String(scan.id))
+
+  const qualityKey: PromptKey = action === 'product_setup' ? 'product_photo_quality' : 'count_photo_quality'
+  const qualityResult = await askVision({
+    userId,
+    instructions: `Você auxilia inventários de restaurantes. Responda em português do Brasil. ${prompts[qualityKey].prompt}`,
+    content: [
+      { type: 'input_text', text: action === 'product_setup'
+        ? `Produto informado: ${productName}. Avalie estas ${paths.length} fotos em conjunto: confirme que mostram o mesmo produto e possuem ângulos e nitidez suficientes para uma referência visual confiável.`
+        : 'Avalie se a área fotografada permite uma contagem confiável do produto selecionado.' },
+      ...images.map((image) => ({ type: 'input_image', image_url: image, detail: 'high' })),
+    ],
+    schemaName: `${qualityKey}_v${prompts[qualityKey].version}`,
+    schema: QUALITY_SCHEMA,
+  })
+  const quality = qualityResult.parsed as { acceptable: boolean; score: number; reason: string; guidance: string }
+
+  if (!quality.acceptable) {
+    await admin.from('inventory_scans').update({ status: 'needs_new_photo', model: qualityResult.model, quality_response: quality, ai_response: { quality } }).eq('id', scan.id)
+    return { scan_id: scan.id, action, image_path: paths[0], image_paths: paths, quality, items: [] }
+  }
+
+  if (action === 'product_setup') {
+    const profileResult = await askVision({
+      userId,
+      instructions: `Você auxilia inventários de restaurantes. Responda em português do Brasil. ${prompts.product_profile.prompt}`,
+      content: [
+        { type: 'input_text', text: `Nome informado: ${productName}. Consolide os ângulos em uma única referência visual sem alterar o nome.` },
+        ...images.map((image) => ({ type: 'input_image', image_url: image, detail: 'high' })),
+      ],
+      schemaName: `product_profile_v${prompts.product_profile.version}`,
+      schema: PRODUCT_PROFILE_SCHEMA,
+    })
+    const productProfile = profileResult.parsed
+    await admin.from('inventory_scans').update({ status: 'completed', model: profileResult.model, quality_response: quality, ai_response: { quality, product_profile: productProfile } }).eq('id', scan.id)
+    return { scan_id: scan.id, action, image_path: paths[0], image_paths: paths, quality, product_profile: productProfile, items: [] }
+  }
+
+  if (!productId) throw new Error('Selecione o produto que deseja contar.')
+  const { data: product } = await admin.from('products')
+    .select('id,name,unit,ai_identity_profile,visual_signature')
+    .eq('id', productId).eq('user_id', userId).single()
+  if (!product) throw new Error('Produto não encontrado para esta conta.')
+  const countResult = await askVision({
+    userId,
+    instructions: `Você auxilia inventários de restaurantes. Responda em português do Brasil. ${prompts.inventory_count.prompt}`,
+    content: [
+      { type: 'input_text', text: `Produto: ${product.name}. Unidade: ${product.unit}. Perfil visual: ${JSON.stringify(product.ai_identity_profile || product.visual_signature || { observacao: 'sem perfil; seja conservador' })}.` },
+      { type: 'input_image', image_url: images[0], detail: 'high' },
+    ],
+    schemaName: `guided_inventory_count_v${prompts.inventory_count.version}`,
+    schema: GUIDED_COUNT_SCHEMA,
+  })
+  const counted = countResult.parsed as { estimated_quantity: number; unit: string; confidence: number; note: string; visual_evidence: string }
+  const items = [{ name: product.name, ...counted, unit: product.unit }]
+  await admin.from('inventory_scans').update({ product_id: product.id, status: 'completed', model: countResult.model, quality_response: quality, items, ai_response: { quality, count: counted } }).eq('id', scan.id)
+  return { scan_id: scan.id, action, image_path: paths[0], image_paths: paths, quality, items }
+}
+
+async function legacyAnalysis(admin: SupabaseClient, userId: string, body: Record<string, unknown>, path: string) {
+  await requireAppAccess(admin, userId, 'Seu teste terminou. Ative a assinatura para usar a contagem por foto.')
+  const { data: blob, error } = await admin.storage.from('inventory-scans').download(path)
+  if (error || !blob) throw new Error('Não foi possível ler a imagem enviada.')
+
+  const focusProductId = body.focus_product_id ? String(body.focus_product_id) : null
+  if (focusProductId) {
+    const { data: product } = await admin.from('products').select('id,name,category,unit,visual_signature')
+      .eq('user_id', userId).eq('id', focusProductId).single()
+    if (!product) throw new Error('Produto não encontrado.')
+    if (!product.visual_signature) throw new Error('Cadastre fotos deste produto antes de contar por IA.')
+    const { parsed, model } = await askVision({
+      userId, instructions: FOCUS_INSTRUCTIONS,
+      content: [
+        { type: 'input_text', text: `Ficha visual (JSON): ${JSON.stringify({ name: product.name, category: product.category, unit: product.unit, visual_signature: product.visual_signature })}` },
+        { type: 'input_image', image_url: await imageDataUrl(blob), detail: 'high' },
+      ],
+      schemaName: 'single_product_count', schema: FOCUS_SCHEMA,
+    })
+    const visible = Boolean(parsed.visible)
+    const estimatedQuantity = visible ? Number(parsed.estimated_quantity) || 0 : 0
+    const unit = (parsed.unit as string) || product.unit
+    const confidence = Number(parsed.confidence) || 0
+    const note = (parsed.note as string) || undefined
+    const items = [{ name: product.name, product_id: product.id, match_confidence: 1, estimated_quantity: estimatedQuantity, unit, confidence, note }]
+    const { data: scan } = await admin.from('inventory_scans').insert({ user_id: userId, original_filename: path.split('/').pop(), items, model, status: 'completed' }).select('id').single()
+    return { visible, estimated_quantity: estimatedQuantity, unit, confidence, note, scan_id: scan?.id || null }
+  }
+
+  const { data: catalog } = await admin.from('products').select('id,name,category,unit,visual_signature')
+    .eq('user_id', userId).not('visual_signature', 'is', null).order('created_at', { ascending: false }).limit(CATALOG_LIMIT)
+  const products = catalog || []
+  const content: unknown[] = [{ type: 'input_text', text: 'Conte os itens visíveis seguindo as regras de contagem e reconhecimento.' }]
+  if (products.length) content.push({ type: 'input_text', text: `Catálogo deste cliente (JSON): ${JSON.stringify(products)}` })
+  content.push({ type: 'input_image', image_url: await imageDataUrl(blob), detail: 'high' })
+  const { parsed, model } = await askVision({
+    userId, instructions: INSTRUCTIONS, content,
+    schemaName: 'inventory_count', schema: catalogCountSchema(products.map((product) => product.id as string)),
+  })
+  const rawItems = Array.isArray(parsed.items) ? parsed.items as Record<string, unknown>[] : []
+  const items = rawItems.map((item) => ({ ...item, product_id: item.product_id || null, note: item.note || undefined }))
+  const { data: scan } = await admin.from('inventory_scans').insert({ user_id: userId, original_filename: path.split('/').pop(), items, model, status: 'completed' }).select('id').single()
+  return { items, scan_id: scan?.id || null }
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(request) })
   if (request.method !== 'POST') return json(request, { error: 'Método não permitido.' }, 405)
-  let path = ''
   const admin = adminClient()
+  let legacyPath = ''
+  let guidedScanId = ''
   try {
     const user = await requireUser(request)
-    const body = await request.json()
-    path = String(body.path || '')
-    if (!path.startsWith(`${user.id}/`)) throw new Error('Imagem inválida para esta conta.')
-
-    await requireAppAccess(admin, user.id, 'Seu teste terminou. Ative a assinatura para usar a contagem por foto.')
-
-    const { data: blob, error: downloadError } = await admin.storage.from('inventory-scans').download(path)
-    if (downloadError || !blob) throw new Error('Não foi possível ler a imagem enviada.')
-
-    // Contagem de um único produto (botão "Contar" na tela de Produtos):
-    // ignora o catálogo inteiro e instrui a IA a considerar só este item.
-    const focusProductId = body.focus_product_id ? String(body.focus_product_id) : null
-    if (focusProductId) {
-      const { data: product } = await admin
-        .from('products')
-        .select('id,name,category,unit,visual_signature')
-        .eq('user_id', user.id)
-        .eq('id', focusProductId)
-        .single()
-      if (!product) throw new Error('Produto não encontrado.')
-      if (!product.visual_signature) throw new Error('Cadastre uma foto deste produto antes de contar por IA.')
-
-      const { parsed, model } = await askVision({
-        userId: user.id,
-        instructions: FOCUS_INSTRUCTIONS,
-        content: [
-          { type: 'input_text', text: `Ficha visual do produto a contar (JSON): ${JSON.stringify({ name: product.name, category: product.category, unit: product.unit, visual_signature: product.visual_signature })}` },
-          { type: 'input_image', image_url: await imageDataUrl(blob), detail: 'high' },
-        ],
-        schemaName: 'single_product_count',
-        schema: FOCUS_SCHEMA,
-      })
-
-      const visible = Boolean(parsed.visible)
-      const estimatedQuantity = visible ? Number(parsed.estimated_quantity) || 0 : 0
-      const unit = (parsed.unit as string) || product.unit
-      const confidence = Number(parsed.confidence) || 0
-      const note = (parsed.note as string) || undefined
-
-      const items = [{ name: product.name, product_id: product.id, match_confidence: 1, estimated_quantity: estimatedQuantity, unit, confidence, note }]
-      const { data: scan } = await admin
-        .from('inventory_scans')
-        .insert({ user_id: user.id, original_filename: path.split('/').pop(), items, model, status: 'completed' })
-        .select('id')
-        .single()
-      return json(request, { visible, estimated_quantity: estimatedQuantity, unit, confidence, note, scan_id: scan?.id || null })
+    const body = await request.json() as Record<string, unknown>
+    const action = String(body.action || '')
+    if (action === 'product_setup' || action === 'inventory_count') {
+      const result = await guidedAnalysis({ admin, userId: user.id, body, action, onScanCreated: (id) => { guidedScanId = id } })
+      return json(request, result)
     }
-
-    // Catálogo de referência: só produtos com ficha visual entram no prompt.
-    // Sem nenhum cadastrado, a contagem continua funcionando em modo genérico.
-    const { data: catalog } = await admin
-      .from('products')
-      .select('id,name,category,unit,visual_signature')
-      .eq('user_id', user.id)
-      .not('visual_signature', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(CATALOG_LIMIT)
-    const products = catalog || []
-
-    const content: unknown[] = [
-      { type: 'input_text', text: 'Conte os itens de estoque visíveis nesta imagem, seguindo as regras de contagem e reconhecimento das instruções.' },
-    ]
-    if (products.length) {
-      content.push({ type: 'input_text', text: `Catálogo de produtos deste cliente (JSON, use para o campo product_id): ${JSON.stringify(products)}` })
-    }
-    content.push({ type: 'input_image', image_url: await imageDataUrl(blob), detail: 'high' })
-
-    const { parsed, model } = await askVision({
-      userId: user.id,
-      instructions: INSTRUCTIONS,
-      content,
-      schemaName: 'inventory_count',
-      schema: countSchema(products.map((product) => product.id as string)),
-    })
-
-    const items = (parsed.items as Record<string, unknown>[]).map((item) => ({
-      ...item,
-      product_id: item.product_id || null,
-      note: item.note || undefined,
-    }))
-    const { data: scan } = await admin
-      .from('inventory_scans')
-      .insert({ user_id: user.id, original_filename: path.split('/').pop(), items, model, status: 'completed' })
-      .select('id')
-      .single()
-    return json(request, { items, scan_id: scan?.id || null })
+    legacyPath = String(body.path || '')
+    if (!legacyPath.startsWith(`${user.id}/`)) throw new Error('Imagem inválida para esta conta.')
+    return json(request, await legacyAnalysis(admin, user.id, body, legacyPath))
   } catch (error) {
-    console.error('analyze-inventory-image:', safeError(error))
-    return json(request, { error: safeError(error) }, 400)
+    const message = safeError(error)
+    console.error('analyze-inventory-image:', message)
+    if (guidedScanId) await admin.from('inventory_scans').update({ status: 'failed', error_message: message.slice(0, 1000) }).eq('id', guidedScanId)
+    return json(request, { error: message }, 400)
   } finally {
-    if (path) await admin.storage.from('inventory-scans').remove([path])
+    // A jornada guiada retém imagens privadas para auditoria; o fluxo legado continua temporário.
+    if (legacyPath) await admin.storage.from('inventory-scans').remove([legacyPath])
   }
 })

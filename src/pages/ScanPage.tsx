@@ -118,7 +118,7 @@ export function ScanPage() {
                 <input value={item.name} onChange={(e) => updateItem(index, { name: e.target.value })} aria-label={`Nome do item ${index + 1}`} />
                 <div className="result-match">
                   {product
-                    ? <span className="matched-product"><ProductThumb name={product.name} photoPath={product.photo_path} size="sm" /><span><strong>{product.name}</strong><small>saldo {product.quantity.toLocaleString('pt-BR')} {product.unit}</small></span><button onClick={() => updateItem(index, { product_id: null })} aria-label={`Desvincular ${product.name}`}><Trash2 size={14} /></button></span>
+                    ? <span className="matched-product"><ProductThumb name={product.name} photoPath={product.photo_path} referencePhotoPath={product.reference_image_path || product.reference_image_paths?.[0]} size="sm" /><span><strong>{product.name}</strong><small>saldo {product.quantity.toLocaleString('pt-BR')} {product.unit}</small></span><button onClick={() => updateItem(index, { product_id: null })} aria-label={`Desvincular ${product.name}`}><Trash2 size={14} /></button></span>
                     : <><span className="new-item-badge">Novo item</span><ProductCombobox id={`scan-match-${index}`} products={products} value="" onChange={(productId) => { const found = products.find((p) => p.id === productId); if (found) linkProduct(index, found) }} onCreate={(query) => setCreatingFor({ index, name: query || item.name })} /></>}
                 </div>
                 <span className="result-quantity">

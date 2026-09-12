@@ -84,7 +84,7 @@ export function QuickCountGrid({ products, onApplied }: Props) {
             return (
               <div className={`quick-count-card${delta ? ' changed' : ''}`} key={product.id}>
                 <div className="quick-count-head">
-                  <ProductThumb name={product.name} photoPath={product.photo_path} />
+                  <ProductThumb name={product.name} photoPath={product.photo_path} referencePhotoPath={product.reference_image_path || product.reference_image_paths?.[0]} />
                   <div><strong>{product.name}</strong><small>Atual: {product.quantity.toLocaleString('pt-BR')} {product.unit}</small></div>
                 </div>
                 <div className="quick-count-controls">

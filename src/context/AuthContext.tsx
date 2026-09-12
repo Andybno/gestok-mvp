@@ -31,6 +31,7 @@ function demoProfile(admin = false): Profile {
     is_admin: true,
     last_seen_at: new Date().toISOString(),
     onboarding_status: 'completed',
+    first_use_completed_at: new Date().toISOString(),
   }
   const saved = localStorage.getItem('gestok_demo_profile')
   if (saved) return JSON.parse(saved)
@@ -46,6 +47,7 @@ function demoProfile(admin = false): Profile {
     // para o app ser explorável localmente sem passos extras. Não afeta produção:
     // só entra neste ramo quando isSupabaseConfigured é falso.
     onboarding_status: 'completed',
+    first_use_completed_at: null,
   }
 }
 
@@ -117,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           is_admin: false,
           last_seen_at: new Date().toISOString(),
           onboarding_status: 'pending_booking',
+          first_use_completed_at: null,
         }
         localStorage.setItem(DEMO_AUTH_KEY, 'true')
         localStorage.setItem('gestok_demo_profile', JSON.stringify(nextProfile))

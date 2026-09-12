@@ -1,7 +1,7 @@
 import { demoStore } from './demoStore'
-import { demoAdminOverview, demoAdminUserDetail } from './adminDemo'
+import { demoAdminOverview, demoAdminUserDetail, demoAiPrompts } from './adminDemo'
 import { isSupabaseConfigured, supabase } from './supabase'
-import type { AdminOverview, AdminUserDetail, InventoryScanItem, InventoryScanResult, LeadFormData, Product, ProductCountResult, ProductVisualSignature, ScanAdjustment, ScanApplyResult, StockMovement } from '../types'
+import type { AiPromptConfig, AdminOverview, AdminUserDetail, InventoryImageAnalysis, InventoryScan, InventoryScanItem, InventoryScanResult, LeadFormData, Product, ProductCountResult, ProductJourneyEvent, ProductVisualSignature, ScanAdjustment, ScanApplyResult, StockMovement } from '../types'
 
 const uid = () => crypto.randomUUID()
 const FUNNEL_SESSION_KEY = 'gestok_funnel_session_id'
@@ -154,7 +154,13 @@ export async function getAdminUserDetail(userId: string): Promise<AdminUserDetai
   if (!supabase) return demoAdminUserDetail(userId)
   const { data, error } = await supabase.rpc('admin_user_detail', { p_user_id: userId })
   if (error) throw error
-  return data as AdminUserDetail
+  const [{ data: scans, error: scansError }, { data: events, error: eventsError }] = await Promise.all([
+    supabase.from('inventory_scans').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
+    supabase.from('product_journey_events').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(100),
+  ])
+  if (scansError) throw scansError
+  if (eventsError) throw eventsError
+  return { ...(data as AdminUserDetail), inventory_scans: await withSignedScanImages((scans || []) as InventoryScan[]), journey_events: (events || []) as ProductJourneyEvent[] }
 }
 
 export async function listProducts(): Promise<Product[]> {
@@ -273,6 +279,18 @@ export async function productPhotoUrl(path: string): Promise<string> {
   return data.signedUrl
 }
 
+const inventoryScanUrlCache = new Map<string, { url: string; expiresAt: number }>()
+
+export async function inventoryScanImageUrl(path: string): Promise<string> {
+  if (!supabase) return path
+  const cached = inventoryScanUrlCache.get(path)
+  if (cached && cached.expiresAt > Date.now()) return cached.url
+  const { data, error } = await supabase.storage.from('inventory-scans').createSignedUrl(path, 3600)
+  if (error) throw error
+  inventoryScanUrlCache.set(path, { url: data.signedUrl, expiresAt: Date.now() + 55 * 60 * 1000 })
+  return data.signedUrl
+}
+
 export async function removeProductPhoto(path: string) {
   photoUrlCache.delete(path)
   if (!supabase) return
@@ -349,6 +367,120 @@ export async function applyScanCount(adjustments: ScanAdjustment[], scanId?: str
     await supabase.rpc('mark_scan_applied', { p_scan_id: scanId })
   }
   return { applied, errors }
+}
+
+export async function analyzeGuidedInventoryImage(fileOrFiles: File | File[], options: {
+  action: 'product_setup' | 'inventory_count'
+  productId?: string
+  productName?: string
+  imageReviewConsent: boolean
+}): Promise<InventoryImageAnalysis> {
+  const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles]
+  if (!files.length || files.length > 5) throw new Error('Envie entre 1 e 5 fotos.')
+  if (!isSupabaseConfigured || !supabase) {
+    await new Promise((resolve) => setTimeout(resolve, 1600))
+    const scanId = uid()
+    return options.action === 'product_setup' ? {
+      scan_id: scanId,
+      action: options.action,
+      image_path: `demo/${scanId}-${files[0].name}`,
+      image_paths: files.map((file, index) => `demo/${scanId}-${index + 1}-${file.name}`),
+      quality: { acceptable: true, score: 0.94, reason: 'Produto nítido e bem enquadrado.', guidance: 'Foto adequada para criar a referência visual.' },
+      items: [],
+      product_profile: { category: 'Mercearia', suggested_unit: 'un', brand: 'Marca visível', packaging: 'Embalagem individual', colors: ['verde', 'branco'], visual_markers: ['logotipo frontal', 'formato retangular'], counting_guidance: 'Contar cada embalagem frontal ou lateral visível.' },
+    } : {
+      scan_id: scanId,
+      action: options.action,
+      image_path: `demo/${scanId}-${files[0].name}`,
+      image_paths: [`demo/${scanId}-${files[0].name}`],
+      quality: { acceptable: true, score: 0.9, reason: 'Área iluminada e produto identificável.', guidance: 'Contagem pronta para revisão.' },
+      items: [{ name: options.productName || 'Produto selecionado', estimated_quantity: 8, unit: 'un', confidence: 0.91, note: 'Uma embalagem pode estar parcialmente encoberta.', visual_evidence: '8 volumes compatíveis visíveis na prateleira.' }],
+    }
+  }
+  if (!options.imageReviewConsent) throw new Error('Confirme o uso da imagem para continuar.')
+  const client = supabase
+  const userId = (await client.auth.getUser()).data.user?.id
+  if (!userId) throw new Error('Entre novamente para usar a contagem por foto.')
+  const batchId = `${Date.now()}-${uid()}`
+  const paths = await Promise.all(files.map(async (file, index) => {
+    const path = `${userId}/${batchId}/${index + 1}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '-')}`
+    const { error: uploadError } = await client.storage.from('inventory-scans').upload(path, file)
+    if (uploadError) throw uploadError
+    return path
+  }))
+  const { data, error } = await client.functions.invoke('analyze-inventory-image', { body: { paths, action: options.action, productId: options.productId, productName: options.productName, imageReviewConsent: options.imageReviewConsent } })
+  if (error) throw new Error(await functionErrorMessage(error, 'Não foi possível analisar estas imagens.'))
+  return data as InventoryImageAnalysis
+}
+
+export async function linkProductScan(scanId: string, productId: string) {
+  if (!supabase) return
+  const { error } = await supabase.rpc('link_product_scan', { p_scan_id: scanId, p_product_id: productId })
+  if (error) throw error
+}
+
+export async function confirmInventoryScan(scanId: string, productId: string, quantity: number) {
+  if (!supabase) {
+    return demoStore.registerMovement({ id: uid(), product_id: productId, type: 'adjustment', quantity, reason: 'Contagem com IA', notes: `Revisão do scan ${scanId}`, created_at: new Date().toISOString() })
+  }
+  const { data, error } = await supabase.rpc('confirm_inventory_scan', { p_scan_id: scanId, p_product_id: productId, p_quantity: quantity })
+  if (error) throw error
+  return data
+}
+
+export async function completeFirstUseExperience() {
+  if (!supabase) {
+    const saved = JSON.parse(localStorage.getItem('gestok_demo_profile') || '{}')
+    localStorage.setItem('gestok_demo_profile', JSON.stringify({ ...saved, first_use_completed_at: new Date().toISOString() }))
+    return
+  }
+  const { error } = await supabase.rpc('complete_first_use_experience')
+  if (error) throw error
+}
+
+export async function trackProductJourneyEvent(eventName: string, metadata: Record<string, unknown> = {}) {
+  if (!supabase) {
+    const events = JSON.parse(localStorage.getItem('gestok_demo_journey_events') || '[]')
+    localStorage.setItem('gestok_demo_journey_events', JSON.stringify([{ id: uid(), user_id: 'demo-user', event_name: eventName, metadata, created_at: new Date().toISOString() }, ...events]))
+    return
+  }
+  const { data: auth } = await supabase.auth.getUser()
+  const { error } = await supabase.from('product_journey_events').insert({ user_id: auth.user?.id, event_name: eventName, metadata })
+  if (error) throw error
+}
+
+async function withSignedScanImages(scans: InventoryScan[]) {
+  if (!supabase) return scans
+  const client = supabase
+  return Promise.all(scans.map(async (scan) => {
+    const paths = scan.image_paths?.length ? scan.image_paths : scan.image_path ? [scan.image_path] : []
+    if (!paths.length) return scan
+    const urls = await Promise.all(paths.map(async (path) => {
+      const { data } = await client.storage.from('inventory-scans').createSignedUrl(path, 3600)
+      return data?.signedUrl || ''
+    }))
+    return { ...scan, image_url: urls[0] || null, image_urls: urls.filter(Boolean) }
+  }))
+}
+
+export async function listAdminInventoryScans(): Promise<InventoryScan[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase.from('inventory_scans').select('*').order('created_at', { ascending: false }).limit(50)
+  if (error) throw error
+  return withSignedScanImages((data || []) as InventoryScan[])
+}
+
+export async function listAiPromptConfigs(): Promise<AiPromptConfig[]> {
+  if (!supabase) return demoAiPrompts()
+  const { data, error } = await supabase.from('ai_prompt_configs').select('*').order('key')
+  if (error) throw error
+  return (data || []) as AiPromptConfig[]
+}
+
+export async function updateAiPromptConfig(key: AiPromptConfig['key'], prompt: string) {
+  if (!supabase) return
+  const { error } = await supabase.rpc('admin_update_ai_prompt', { p_key: key, p_prompt: prompt })
+  if (error) throw error
 }
 
 export async function createCheckoutSession() {

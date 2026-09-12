@@ -32,7 +32,7 @@ export function ScanConfirmModal({ adjustments, ignored, applying, note, onCance
             <ul className="confirm-list">
               {adjustments.map((adjustment) => (
                 <li key={adjustment.product.id}>
-                  <ProductThumb name={adjustment.product.name} photoPath={adjustment.product.photo_path} size="sm" />
+                  <ProductThumb name={adjustment.product.name} photoPath={adjustment.product.photo_path} referencePhotoPath={adjustment.product.reference_image_path || adjustment.product.reference_image_paths?.[0]} size="sm" />
                   <div className="confirm-copy">
                     <strong>{adjustment.product.name}</strong>
                     <small>{number(adjustment.current)} <ArrowRight size={12} /> {number(adjustment.counted)} {adjustment.product.unit}</small>
