@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Activity, BarChart3, Box, CalendarDays, CheckCircle2, ChevronRight, Clock3, Eye, LogOut, Megaphone, MousePointerClick, PackageCheck, PencilLine, RotateCcw, Search, ShieldCheck, UserMinus, UserPlus, Users, X } from 'lucide-react'
+import { Activity, ArrowDown, ArrowUp, ArrowUpDown, BarChart3, Box, CalendarDays, CheckCircle2, ChevronRight, Clock3, Eye, Filter, LogOut, Megaphone, MousePointerClick, PackageCheck, PencilLine, RotateCcw, Search, ShieldCheck, UserMinus, UserPlus, Users, X } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Brand } from '../components/Brand'
 import { useAuth } from '../context/AuthContext'
@@ -37,6 +37,29 @@ const statusLabels: Record<AdminUserSummary['subscription_status'], string> = {
 const onboardingLabels: Record<AdminUserSummary['onboarding_status'], string> = {
   pending_booking: 'Aguardando agenda', scheduled: 'Reunião marcada', completed: 'Acesso liberado',
 }
+
+type SortState<K extends string> = { key: K; dir: 'asc' | 'desc' } | null
+
+function toggleSort<K extends string>(current: SortState<K>, key: K): SortState<K> {
+  if (!current || current.key !== key) return { key, dir: 'asc' }
+  return { key, dir: current.dir === 'asc' ? 'desc' : 'asc' }
+}
+
+function SortableHeader<K extends string>({ label, sortKey, sort, onSort }: { label: string; sortKey: K; sort: SortState<K>; onSort: (key: K) => void }) {
+  const active = sort?.key === sortKey
+  return (
+    <th>
+      <button type="button" className={`sort-header${active ? ' active' : ''}`} onClick={() => onSort(sortKey)}>
+        {label}
+        {active ? (sort!.dir === 'asc' ? <ArrowUp size={13} /> : <ArrowDown size={13} />) : <ArrowUpDown size={13} />}
+      </button>
+    </th>
+  )
+}
+
+type UserSortKey = 'name' | 'subscription' | 'onboarding' | 'products' | 'movements' | 'last_seen' | 'created'
+type DiagnosticSortKey = 'contact' | 'status' | 'progress' | 'source' | 'account' | 'updated'
+const diagnosticStatusRank: Record<'started' | 'incomplete' | 'completed', number> = { started: 0, incomplete: 1, completed: 2 }
 
 const DIAGNOSTIC_QUESTION_COUNT = 6
 const ACTIVE_FUNNEL_KEYS = ['operation_type', 'units_count', 'inventory_method', 'main_challenge', 'email', 'contact_consent']
@@ -98,6 +121,14 @@ export function AdminPage() {
   const [search, setSearch] = useState('')
   const [expandedFunnelKey, setExpandedFunnelKey] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [subscriptionFilter, setSubscriptionFilter] = useState<'all' | AdminUserSummary['subscription_status']>('all')
+  const [onboardingFilter, setOnboardingFilter] = useState<'all' | AdminUserSummary['onboarding_status']>('all')
+  const [hasProductsFilter, setHasProductsFilter] = useState<'all' | 'with' | 'without'>('all')
+  const [userSort, setUserSort] = useState<SortState<UserSortKey>>(null)
+  const [diagnosticStatusFilter, setDiagnosticStatusFilter] = useState<'all' | 'completed' | 'incomplete' | 'started'>('all')
+  const [diagnosticSourceFilter, setDiagnosticSourceFilter] = useState<'all' | 'meta' | 'direct'>('all')
+  const [diagnosticAccountFilter, setDiagnosticAccountFilter] = useState<'all' | 'created' | 'not_created'>('all')
+  const [diagnosticSort, setDiagnosticSort] = useState<SortState<DiagnosticSortKey>>(null)
 
   useEffect(() => {
     getAdminOverview().then((next) => {
@@ -111,7 +142,71 @@ export function AdminPage() {
   const activeDiagnosticSessions = useMemo(() => diagnosticSessions.filter((session) => !session.excluded_from_analytics), [diagnosticSessions])
   const activeUsersById = useMemo(() => new Map(activeUsers.map((user) => [user.id, user])), [activeUsers])
   const excludedCount = (overview?.users.length || 0) - activeUsers.length
-  const users = useMemo(() => (overview?.users || []).filter((user) => (showExcluded || !user.excluded_from_analytics) && `${user.full_name} ${user.business_name} ${user.email}`.toLowerCase().includes(search.toLowerCase())), [overview, search, showExcluded])
+
+  const filteredUsers = useMemo(() => {
+    let rows = (overview?.users || []).filter((user) =>
+      (showExcluded || !user.excluded_from_analytics)
+      && `${user.full_name} ${user.business_name} ${user.email}`.toLowerCase().includes(search.toLowerCase())
+      && (subscriptionFilter === 'all' || user.subscription_status === subscriptionFilter)
+      && (onboardingFilter === 'all' || user.onboarding_status === onboardingFilter)
+      && (hasProductsFilter === 'all' || (hasProductsFilter === 'with' ? user.products_count > 0 : user.products_count === 0)))
+    if (userSort) {
+      const { key, dir } = userSort
+      const mult = dir === 'asc' ? 1 : -1
+      rows = [...rows].sort((a, b) => {
+        switch (key) {
+          case 'name': return a.full_name.localeCompare(b.full_name, 'pt-BR') * mult
+          case 'subscription': return statusLabels[a.subscription_status].localeCompare(statusLabels[b.subscription_status], 'pt-BR') * mult
+          case 'onboarding': return onboardingLabels[a.onboarding_status].localeCompare(onboardingLabels[b.onboarding_status], 'pt-BR') * mult
+          case 'products': return (a.products_count - b.products_count) * mult
+          case 'movements': return (a.movements_count - b.movements_count) * mult
+          case 'last_seen': return (new Date(a.last_seen_at).getTime() - new Date(b.last_seen_at).getTime()) * mult
+          case 'created': return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * mult
+          default: return 0
+        }
+      })
+    }
+    return rows
+  }, [overview, search, showExcluded, subscriptionFilter, onboardingFilter, hasProductsFilter, userSort])
+
+  const diagnosticRows = useMemo(() => diagnosticSessions.map((session) => {
+    const progress = diagnosticProgress(session)
+    const completed = Boolean(session.completed_at || session.lead_id)
+    const status: 'completed' | 'incomplete' | 'started' = completed ? 'completed' : progress > 0 ? 'incomplete' : 'started'
+    return {
+      session,
+      contact: diagnosticContact(session),
+      progress,
+      status,
+      statusLabel: status === 'completed' ? 'Concluído' : status === 'incomplete' ? 'Incompleto' : 'Iniciado',
+      isMeta: Boolean(session.meta_attributed),
+      sourceLabel: session.meta_attributed ? 'Meta Ads' : session.source || 'Direto',
+      hasAccount: Boolean(session.linked_user_id),
+    }
+  }), [diagnosticSessions])
+
+  const filteredDiagnosticRows = useMemo(() => {
+    let rows = diagnosticRows.filter((row) =>
+      (diagnosticStatusFilter === 'all' || row.status === diagnosticStatusFilter)
+      && (diagnosticSourceFilter === 'all' || (diagnosticSourceFilter === 'meta' ? row.isMeta : !row.isMeta))
+      && (diagnosticAccountFilter === 'all' || (diagnosticAccountFilter === 'created' ? row.hasAccount : !row.hasAccount)))
+    if (diagnosticSort) {
+      const { key, dir } = diagnosticSort
+      const mult = dir === 'asc' ? 1 : -1
+      rows = [...rows].sort((a, b) => {
+        switch (key) {
+          case 'contact': return a.contact.localeCompare(b.contact, 'pt-BR') * mult
+          case 'status': return (diagnosticStatusRank[a.status] - diagnosticStatusRank[b.status]) * mult
+          case 'progress': return (a.progress - b.progress) * mult
+          case 'source': return a.sourceLabel.localeCompare(b.sourceLabel, 'pt-BR') * mult
+          case 'account': return (Number(a.hasAccount) - Number(b.hasAccount)) * mult
+          case 'updated': return (new Date(a.session.updated_at).getTime() - new Date(b.session.updated_at).getTime()) * mult
+          default: return 0
+        }
+      })
+    }
+    return rows
+  }, [diagnosticRows, diagnosticStatusFilter, diagnosticSourceFilter, diagnosticAccountFilter, diagnosticSort])
 
   const openUser = async (userId: string) => {
     setDiagnosticDetail(null); setDetailLoading(true); setConfirmingExclusion(false); setError('')
@@ -299,18 +394,85 @@ export function AdminPage() {
           </section>
 
           <section className="table-panel admin-users-panel admin-diagnostics-panel">
-            <div className="panel-heading admin-users-heading"><div><h2>Todos os diagnósticos</h2><p>Respostas completas e abandonadas, mesmo quando a pessoa não criou uma conta.</p></div><span className="admin-record-count">{diagnosticSessions.length} registros</span></div>
-            <div className="responsive-table"><table><thead><tr><th>Contato / sessão</th><th>Status</th><th>Progresso</th><th>Origem</th><th>Conta</th><th>Análise</th><th>Última atividade</th><th><span className="sr-only">Detalhes</span></th></tr></thead><tbody>{diagnosticSessions.map((session) => {
-              const completed = Boolean(session.completed_at || session.lead_id)
-              const progress = diagnosticProgress(session)
-              const status = completed ? 'Concluído' : progress > 0 ? 'Incompleto' : 'Iniciado'
-              return <tr key={session.id} className={session.excluded_from_analytics ? 'admin-user-excluded' : ''}><td><div className="diagnostic-contact"><strong>{diagnosticContact(session)}</strong><small>{session.answers.operation_type || 'Operação ainda não informada'}</small></div></td><td><span className={`diagnostic-status ${completed ? 'completed' : progress > 0 ? 'incomplete' : 'started'}`}>{status}</span></td><td><strong>{progress} de {DIAGNOSTIC_QUESTION_COUNT}</strong></td><td>{session.meta_attributed ? <span className="analytics-status">Meta Ads</span> : <span className="muted">{session.source || 'Direto'}</span>}</td><td>{session.linked_user_id ? 'Criada' : <span className="muted">Não criada</span>}</td><td><span className={`analytics-status ${session.excluded_from_analytics ? 'excluded' : ''}`}>{session.excluded_from_analytics ? 'Removido' : 'Incluído'}</span></td><td><span className="last-seen"><span />{lastSeenLabel(session.updated_at)}</span></td><td><button className="admin-view-button" onClick={() => { setDetail(null); setDiagnosticDetail(session) }}><Eye size={15} /> Visualizar</button></td></tr>
-            })}</tbody></table></div>
+            <div className="panel-heading admin-users-heading">
+              <div><h2>Todos os diagnósticos</h2><p>Respostas completas e abandonadas, mesmo quando a pessoa não criou uma conta.</p></div>
+              <div className="admin-user-tools">
+                <label className="filter-select"><Filter size={15} /><select value={diagnosticStatusFilter} onChange={(e) => setDiagnosticStatusFilter(e.target.value as typeof diagnosticStatusFilter)}>
+                  <option value="all">Todo status</option>
+                  <option value="completed">Concluído</option>
+                  <option value="incomplete">Incompleto</option>
+                  <option value="started">Iniciado</option>
+                </select></label>
+                <label className="filter-select"><Filter size={15} /><select value={diagnosticSourceFilter} onChange={(e) => setDiagnosticSourceFilter(e.target.value as typeof diagnosticSourceFilter)}>
+                  <option value="all">Toda origem</option>
+                  <option value="meta">Meta Ads</option>
+                  <option value="direct">Direto / outro</option>
+                </select></label>
+                <label className="filter-select"><Filter size={15} /><select value={diagnosticAccountFilter} onChange={(e) => setDiagnosticAccountFilter(e.target.value as typeof diagnosticAccountFilter)}>
+                  <option value="all">Com ou sem conta</option>
+                  <option value="created">Conta criada</option>
+                  <option value="not_created">Conta não criada</option>
+                </select></label>
+                <span className="admin-record-count">{filteredDiagnosticRows.length} de {diagnosticSessions.length} registros</span>
+              </div>
+            </div>
+            <div className="responsive-table"><table><thead><tr>
+              <SortableHeader label="Contato / sessão" sortKey="contact" sort={diagnosticSort} onSort={(key) => setDiagnosticSort((current) => toggleSort(current, key))} />
+              <SortableHeader label="Status" sortKey="status" sort={diagnosticSort} onSort={(key) => setDiagnosticSort((current) => toggleSort(current, key))} />
+              <SortableHeader label="Progresso" sortKey="progress" sort={diagnosticSort} onSort={(key) => setDiagnosticSort((current) => toggleSort(current, key))} />
+              <SortableHeader label="Origem" sortKey="source" sort={diagnosticSort} onSort={(key) => setDiagnosticSort((current) => toggleSort(current, key))} />
+              <SortableHeader label="Conta" sortKey="account" sort={diagnosticSort} onSort={(key) => setDiagnosticSort((current) => toggleSort(current, key))} />
+              <th>Análise</th>
+              <SortableHeader label="Última atividade" sortKey="updated" sort={diagnosticSort} onSort={(key) => setDiagnosticSort((current) => toggleSort(current, key))} />
+              <th><span className="sr-only">Detalhes</span></th>
+            </tr></thead><tbody>{filteredDiagnosticRows.map((row) => {
+              const session = row.session
+              return <tr key={session.id} className={session.excluded_from_analytics ? 'admin-user-excluded' : ''}><td><div className="diagnostic-contact"><strong>{row.contact}</strong><small>{session.answers.operation_type || 'Operação ainda não informada'}</small></div></td><td><span className={`diagnostic-status ${row.status}`}>{row.statusLabel}</span></td><td><strong>{row.progress} de {DIAGNOSTIC_QUESTION_COUNT}</strong></td><td>{row.isMeta ? <span className="analytics-status">Meta Ads</span> : <span className="muted">{row.sourceLabel}</span>}</td><td>{row.hasAccount ? 'Criada' : <span className="muted">Não criada</span>}</td><td><span className={`analytics-status ${session.excluded_from_analytics ? 'excluded' : ''}`}>{session.excluded_from_analytics ? 'Removido' : 'Incluído'}</span></td><td><span className="last-seen"><span />{lastSeenLabel(session.updated_at)}</span></td><td><button className="admin-view-button" onClick={() => { setDetail(null); setDiagnosticDetail(session) }}><Eye size={15} /> Visualizar</button></td></tr>
+            })}
+            {filteredDiagnosticRows.length === 0 && <tr><td colSpan={8} className="admin-empty-copy">Nenhum diagnóstico encontrado com esses filtros.</td></tr>}
+            </tbody></table></div>
           </section>
 
           <section className="table-panel admin-users-panel">
-            <div className="panel-heading admin-users-heading"><div><h2>Usuários da plataforma</h2><p>Consulte atividade, assinatura e dados operacionais.</p></div><div className="admin-user-tools"><button type="button" className={`button button-ghost button-sm ${showExcluded ? 'selected' : ''}`} onClick={() => setShowExcluded((current) => !current)}>{showExcluded ? 'Ocultar removidos' : `Mostrar removidos (${excludedCount})`}</button><label className="search-box"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar usuário ou estabelecimento" /></label></div></div>
-            <div className="responsive-table"><table><thead><tr><th>Usuário</th><th>Análise</th><th>Onboarding</th><th>Assinatura</th><th>Produtos</th><th>Movimentações</th><th>Último acesso</th><th>Conta criada</th><th><span className="sr-only">Detalhes</span></th></tr></thead><tbody>{users.map((user) => <tr key={user.id} className={user.excluded_from_analytics ? 'admin-user-excluded' : ''}><td><div className="product-cell"><span>{user.full_name.slice(0, 2).toUpperCase()}</span><div><strong>{user.full_name}</strong><small>{user.business_name} · {user.email}</small></div></div></td><td><span className={`analytics-status ${user.excluded_from_analytics ? 'excluded' : ''}`}>{user.excluded_from_analytics ? 'Removido' : 'Incluído'}</span></td><td><span className={`onboarding-status ${user.onboarding_status}`}>{onboardingLabels[user.onboarding_status]}</span>{user.onboarding_scheduled_at && <small className="admin-schedule-date">{fullDate.format(new Date(user.onboarding_scheduled_at))}</small>}</td><td><span className={`admin-status ${user.subscription_status}`}>{statusLabels[user.subscription_status]}</span></td><td><strong>{user.products_count}</strong></td><td>{user.movements_count}</td><td><span className="last-seen"><span />{lastSeenLabel(user.last_seen_at)}</span></td><td className="muted">{fullDate.format(new Date(user.created_at))}</td><td><button className="admin-view-button" onClick={() => openUser(user.id)}><Eye size={15} /> Visualizar</button></td></tr>)}</tbody></table></div>
+            <div className="panel-heading admin-users-heading">
+              <div><h2>Usuários da plataforma</h2><p>Consulte atividade, assinatura e dados operacionais.</p></div>
+              <div className="admin-user-tools">
+                <button type="button" className={`button button-ghost button-sm ${showExcluded ? 'selected' : ''}`} onClick={() => setShowExcluded((current) => !current)}>{showExcluded ? 'Ocultar removidos' : `Mostrar removidos (${excludedCount})`}</button>
+                <label className="filter-select"><Filter size={15} /><select value={subscriptionFilter} onChange={(e) => setSubscriptionFilter(e.target.value as typeof subscriptionFilter)}>
+                  <option value="all">Toda assinatura</option>
+                  <option value="trialing">Teste grátis</option>
+                  <option value="active">Ativo</option>
+                  <option value="past_due">Pagamento pendente</option>
+                  <option value="canceled">Cancelado</option>
+                  <option value="expired">Teste encerrado</option>
+                </select></label>
+                <label className="filter-select"><Filter size={15} /><select value={onboardingFilter} onChange={(e) => setOnboardingFilter(e.target.value as typeof onboardingFilter)}>
+                  <option value="all">Todo onboarding</option>
+                  <option value="pending_booking">Aguardando agenda</option>
+                  <option value="scheduled">Reunião marcada</option>
+                  <option value="completed">Acesso liberado</option>
+                </select></label>
+                <label className="filter-select"><Filter size={15} /><select value={hasProductsFilter} onChange={(e) => setHasProductsFilter(e.target.value as typeof hasProductsFilter)}>
+                  <option value="all">Com ou sem produto</option>
+                  <option value="with">Com produtos</option>
+                  <option value="without">Sem produtos</option>
+                </select></label>
+                <label className="search-box"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar usuário ou estabelecimento" /></label>
+              </div>
+            </div>
+            <div className="responsive-table"><table><thead><tr>
+              <SortableHeader label="Usuário" sortKey="name" sort={userSort} onSort={(key) => setUserSort((current) => toggleSort(current, key))} />
+              <th>Análise</th>
+              <SortableHeader label="Onboarding" sortKey="onboarding" sort={userSort} onSort={(key) => setUserSort((current) => toggleSort(current, key))} />
+              <SortableHeader label="Assinatura" sortKey="subscription" sort={userSort} onSort={(key) => setUserSort((current) => toggleSort(current, key))} />
+              <SortableHeader label="Produtos" sortKey="products" sort={userSort} onSort={(key) => setUserSort((current) => toggleSort(current, key))} />
+              <SortableHeader label="Movimentações" sortKey="movements" sort={userSort} onSort={(key) => setUserSort((current) => toggleSort(current, key))} />
+              <SortableHeader label="Último acesso" sortKey="last_seen" sort={userSort} onSort={(key) => setUserSort((current) => toggleSort(current, key))} />
+              <SortableHeader label="Conta criada" sortKey="created" sort={userSort} onSort={(key) => setUserSort((current) => toggleSort(current, key))} />
+              <th><span className="sr-only">Detalhes</span></th>
+            </tr></thead><tbody>{filteredUsers.map((user) => <tr key={user.id} className={user.excluded_from_analytics ? 'admin-user-excluded' : ''}><td><div className="product-cell"><span>{user.full_name.slice(0, 2).toUpperCase()}</span><div><strong>{user.full_name}</strong><small>{user.business_name} · {user.email}</small></div></div></td><td><span className={`analytics-status ${user.excluded_from_analytics ? 'excluded' : ''}`}>{user.excluded_from_analytics ? 'Removido' : 'Incluído'}</span></td><td><span className={`onboarding-status ${user.onboarding_status}`}>{onboardingLabels[user.onboarding_status]}</span>{user.onboarding_scheduled_at && <small className="admin-schedule-date">{fullDate.format(new Date(user.onboarding_scheduled_at))}</small>}</td><td><span className={`admin-status ${user.subscription_status}`}>{statusLabels[user.subscription_status]}</span></td><td><strong>{user.products_count}</strong></td><td>{user.movements_count}</td><td><span className="last-seen"><span />{lastSeenLabel(user.last_seen_at)}</span></td><td className="muted">{fullDate.format(new Date(user.created_at))}</td><td><button className="admin-view-button" onClick={() => openUser(user.id)}><Eye size={15} /> Visualizar</button></td></tr>)}
+            {filteredUsers.length === 0 && <tr><td colSpan={9} className="admin-empty-copy">Nenhum usuário encontrado com esses filtros.</td></tr>}
+            </tbody></table></div>
           </section>
         </>}
       </main>
