@@ -12,3 +12,6 @@ verify_jwt = true
 
 [functions.create-account]
 verify_jwt = true
+
+[functions.describe-product-photo]
+verify_jwt = true

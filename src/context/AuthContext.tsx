@@ -42,7 +42,10 @@ function demoProfile(admin = false): Profile {
     subscription_status: 'trialing',
     is_admin: false,
     last_seen_at: new Date().toISOString(),
-    onboarding_status: 'pending_booking',
+    // Pula o agendamento de onboarding no modo demo (sem Supabase configurado)
+    // para o app ser explorável localmente sem passos extras. Não afeta produção:
+    // só entra neste ramo quando isSupabaseConfigured é falso.
+    onboarding_status: 'completed',
   }
 }
 

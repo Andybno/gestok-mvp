@@ -1,7 +1,7 @@
 import { demoStore } from './demoStore'
 import { demoAdminOverview, demoAdminUserDetail } from './adminDemo'
 import { isSupabaseConfigured, supabase } from './supabase'
-import type { AdminOverview, AdminUserDetail, InventoryScanItem, LeadFormData, Product, StockMovement } from '../types'
+import type { AdminOverview, AdminUserDetail, InventoryScanItem, InventoryScanResult, LeadFormData, Product, ProductVisualSignature, ScanAdjustment, ScanApplyResult, StockMovement } from '../types'
 
 const uid = () => crypto.randomUUID()
 const FUNNEL_SESSION_KEY = 'gestok_funnel_session_id'
@@ -208,21 +208,112 @@ export async function registerMovement(input: Omit<StockMovement, 'id' | 'create
   return data
 }
 
-export async function analyzeInventoryImage(file: File): Promise<InventoryScanItem[]> {
+/** Caminho no storage isolado por usuário: as policies exigem a pasta = auth.uid(). */
+async function userScopedPath(fileName: string) {
+  const { data: auth } = await supabase!.auth.getUser()
+  return `${auth.user?.id}/${Date.now()}-${fileName.replace(/[^a-zA-Z0-9.-]/g, '-')}`
+}
+
+export async function uploadProductPhoto(file: File): Promise<string> {
+  if (!supabase) {
+    // No modo demo o "path" é a própria imagem em data URL, para a miniatura
+    // sobreviver ao recarregamento da página.
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.onerror = () => reject(new Error('Não foi possível ler a imagem.'))
+      reader.readAsDataURL(file)
+    })
+  }
+  const path = await userScopedPath(file.name)
+  const { error } = await supabase.storage.from('product-photos').upload(path, file)
+  if (error) throw error
+  return path
+}
+
+export async function describeProductPhoto(path: string): Promise<{ signature: ProductVisualSignature; model: string }> {
+  if (!isSupabaseConfigured || !supabase) {
+    await new Promise((resolve) => setTimeout(resolve, 1400))
+    return {
+      signature: { brand: 'Marca exemplo', product_kind: 'produto de estoque', package_type: 'caixa', package_size: '1 kg', dominant_colors: ['vermelho', 'branco'], label_text: ['EXEMPLO', '1kg'], shape: 'caixa retangular', distinctive_marks: 'faixa diagonal no rótulo', photo_quality: 'boa', usable_for_matching: true },
+      model: 'demo',
+    }
+  }
+  const { data, error } = await supabase.functions.invoke('describe-product-photo', { body: { path } })
+  if (error) throw error
+  return data as { signature: ProductVisualSignature; model: string }
+}
+
+const photoUrlCache = new Map<string, { url: string; expiresAt: number }>()
+
+/** URL assinada com cache em memória, para a lista não reassinar a cada render. */
+export async function productPhotoUrl(path: string): Promise<string> {
+  if (!supabase) return path
+  const cached = photoUrlCache.get(path)
+  if (cached && cached.expiresAt > Date.now()) return cached.url
+  const { data, error } = await supabase.storage.from('product-photos').createSignedUrl(path, 3600)
+  if (error) throw error
+  photoUrlCache.set(path, { url: data.signedUrl, expiresAt: Date.now() + 55 * 60 * 1000 })
+  return data.signedUrl
+}
+
+export async function removeProductPhoto(path: string) {
+  photoUrlCache.delete(path)
+  if (!supabase) return
+  const { error } = await supabase.storage.from('product-photos').remove([path])
+  if (error) throw error
+}
+
+export async function analyzeInventoryImage(file: File): Promise<InventoryScanResult> {
   if (!isSupabaseConfigured || !supabase) {
     await new Promise((resolve) => setTimeout(resolve, 1600))
-    return [
-      { name: 'Óleo de soja 900 ml', estimated_quantity: 8, unit: 'un', confidence: 0.93 },
-      { name: 'Molho de tomate', estimated_quantity: 12, unit: 'un', confidence: 0.88, note: '2 itens parcialmente encobertos' },
-      { name: 'Farinha de trigo 1 kg', estimated_quantity: 5, unit: 'un', confidence: 0.81 },
-    ]
+    // Aponta para os produtos do seed, para o fluxo completo de contagem e
+    // ajuste ser demonstrável sem Supabase.
+    return {
+      items: [
+        { name: 'Arroz branco', estimated_quantity: 12, unit: 'kg', confidence: 0.93, product_id: 'p2', match_confidence: 0.91 },
+        { name: 'Azeite extra virgem', estimated_quantity: 4, unit: 'un', confidence: 0.88, product_id: 'p4', match_confidence: 0.84, note: '2 itens parcialmente encobertos' },
+        { name: 'Molho de tomate 340 g', estimated_quantity: 9, unit: 'un', confidence: 0.81, product_id: null },
+      ],
+      scan_id: null,
+    }
   }
-  const path = `${(await supabase.auth.getUser()).data.user?.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '-')}`
+  const path = await userScopedPath(file.name)
   const { error: uploadError } = await supabase.storage.from('inventory-scans').upload(path, file)
   if (uploadError) throw uploadError
   const { data, error } = await supabase.functions.invoke('analyze-inventory-image', { body: { path } })
   if (error) throw error
-  return data.items as InventoryScanItem[]
+  return { items: data.items as InventoryScanItem[], scan_id: data.scan_id ?? null }
+}
+
+/**
+ * Aplica a contagem revisada como movimentações de ajuste.
+ * O RPC trata 'adjustment' como valor absoluto, então enviamos o total contado.
+ * Uma falha isolada não aborta o lote: os erros voltam por produto.
+ */
+export async function applyScanCount(adjustments: ScanAdjustment[], scanId?: string | null): Promise<ScanApplyResult> {
+  const errors: ScanApplyResult['errors'] = []
+  let applied = 0
+
+  for (const adjustment of adjustments) {
+    try {
+      await registerMovement({
+        product_id: adjustment.product.id,
+        type: 'adjustment',
+        quantity: adjustment.counted,
+        reason: 'Contagem por foto',
+        notes: `Contagem por foto: ${adjustment.current} → ${adjustment.counted} ${adjustment.product.unit}`,
+      })
+      applied += 1
+    } catch (cause) {
+      errors.push({ product: adjustment.product.name, message: cause instanceof Error ? cause.message : 'Não foi possível ajustar este item.' })
+    }
+  }
+
+  if (applied && scanId && supabase) {
+    await supabase.rpc('mark_scan_applied', { p_scan_id: scanId })
+  }
+  return { applied, errors }
 }
 
 export async function createCheckoutSession() {

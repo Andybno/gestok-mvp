@@ -312,3 +312,72 @@
 .product-combobox-create { width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 12px; color: var(--green-800); background: var(--green-50); border: 0; border-top: 1px solid var(--border); font-size: 14px; font-weight: 700; }
 .product-combobox-create:hover { background: var(--green-100); }
 .modal-backdrop-stacked { z-index: 60; background: rgba(9,27,20,.42); }
+
+/* Foto do produto e reconhecimento na contagem por foto */
+.product-thumb { display: grid; place-items: center; overflow: hidden; border-radius: 8px; color: var(--green-800); background: var(--green-100); font-size: var(--fs-2xs); font-weight: 800; flex: none; }
+.product-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.product-thumb-md { width: 30px; height: 30px; }
+.product-thumb-sm { width: 26px; height: 26px; border-radius: 7px; }
+.no-signature-badge { display: flex; align-items: center; gap: 4px; color: #a1794b; }
+
+.photo-field { display: grid; grid-template-columns: 118px 1fr; gap: 14px; align-items: start; margin-bottom: 20px; }
+.photo-preview { position: relative; height: 118px; overflow: hidden; border-radius: 11px; background: #e9eeeb; }
+.photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+.photo-analyzing { position: absolute; inset: auto 0 0 0; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 5px; color: #fff; background: rgba(10,35,26,.78); font-size: var(--fs-2xs); }
+.photo-placeholder { height: 118px; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 8px; border: 1.5px dashed #a9c8b5; border-radius: 11px; background: #f8fcf9; color: #69766e; text-align: center; }
+.photo-placeholder:hover { border-color: var(--green-500); background: var(--green-50); }
+.photo-placeholder strong { font-size: var(--fs-xs); color: var(--green-800); }
+.photo-placeholder small { font-size: var(--fs-2xs); color: #909a93; line-height: var(--lh-snug); }
+.photo-details { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.photo-details > small { color: #909a93; font-size: var(--fs-2xs); line-height: var(--lh-snug); }
+.photo-badge { width: fit-content; display: flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 11px; color: var(--green-700); background: var(--green-50); font-size: var(--fs-2xs); font-weight: 700; }
+.signature-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.signature-chips span { padding: 3px 7px; border-radius: 9px; color: #637069; background: #f0f3f1; font-size: var(--fs-2xs); }
+.photo-actions { display: flex; align-items: center; gap: 7px; margin-top: auto; }
+.photo-actions .button { padding: 8px 11px; font-size: var(--fs-xs); }
+.photo-actions .icon-button { width: 33px; height: 33px; }
+.form-warning { display: flex; align-items: center; gap: 7px; padding: 11px 13px; border-radius: 9px; margin-bottom: 15px; color: #8a6947; background: #fff5e9; border: 1px solid #f2dcc2; font-size: var(--fs-sm); }
+
+.scan-catalog-tip { display: flex; gap: 9px; border-radius: 10px; padding: 12px; margin-top: 9px; background: var(--green-50); color: #4d6959; }
+.scan-catalog-tip svg { flex: none; }
+.scan-catalog-tip p { font-size: var(--fs-2xs); line-height: 1.5; margin: 0; }
+.scan-catalog-tip strong { display: block; font-size: var(--fs-xs); margin-bottom: 3px; }
+.scan-catalog-tip a { color: var(--green-700); font-weight: 700; }
+
+/* A coluna do meio recebe o vínculo com o produto do catálogo. */
+.result-head, .result-row { grid-template-columns: 1.3fr 1.6fr .9fr .6fr 35px; }
+.result-match { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.result-match .product-combobox { flex: 1; min-width: 0; }
+.result-match .product-combobox-trigger { height: 36px; padding: 0 9px; font-size: var(--fs-2xs); }
+.matched-product { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.matched-product > span { display: flex; flex-direction: column; min-width: 0; }
+.matched-product strong { font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.matched-product small { color: #9aa39d; font-size: var(--fs-2xs); }
+.new-item-badge { padding: 3px 7px; border-radius: 9px; color: #7162a2; background: #efedfa; font-size: var(--fs-2xs); font-weight: 700; white-space: nowrap; }
+.result-quantity { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.result-quantity input { flex: 1; min-width: 0; }
+.result-quantity > small { color: #9aa39d; font-size: var(--fs-2xs); }
+
+.modal-wide { width: min(680px, 100%); }
+.confirm-list { list-style: none; padding: 0; margin: 0; border: 1px solid var(--border); border-radius: 11px; overflow: hidden; }
+.confirm-list li { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border-bottom: 1px solid #f0f2f1; }
+.confirm-list li:last-child { border-bottom: 0; }
+.confirm-copy { display: flex; flex-direction: column; margin-right: auto; min-width: 0; }
+.confirm-copy strong { font-size: var(--fs-xs); }
+.confirm-copy small { display: flex; align-items: center; gap: 5px; color: #8a958e; font-size: var(--fs-2xs); }
+.confirm-delta { padding: 4px 9px; border-radius: 10px; font-size: var(--fs-2xs); font-weight: 800; }
+.confirm-delta.up { color: #26865a; background: #e5f6ec; }
+.confirm-delta.down { color: #c45b44; background: #fff0ec; }
+.confirm-ignored { margin-top: 15px; padding: 13px; border-radius: 11px; background: #fafbfa; }
+.confirm-ignored > strong { display: block; color: #6d7a72; font-size: var(--fs-xs); margin-bottom: 8px; }
+.confirm-ignored ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.confirm-ignored li { display: flex; justify-content: space-between; gap: 12px; font-size: var(--fs-2xs); }
+.confirm-ignored li span { color: #55635a; }
+.confirm-ignored li small { color: #9aa39d; font-size: var(--fs-2xs); text-align: right; }
+
+@media (max-width: 600px) {
+  .photo-field { grid-template-columns: 1fr; }
+  .result-head, .result-row { min-width: 720px; }
+  .confirm-ignored li { flex-direction: column; gap: 2px; }
+  .confirm-ignored li small { text-align: left; }
+}

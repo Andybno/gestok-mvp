@@ -1,13 +1,17 @@
-import type { Product, StockMovement } from '../types'
+import type { Product, ProductVisualSignature, StockMovement } from '../types'
 
 const PRODUCTS_KEY = 'gestok_demo_products'
 const MOVEMENTS_KEY = 'gestok_demo_movements'
 
+function signature(partial: Partial<ProductVisualSignature>): ProductVisualSignature {
+  return { brand: '', product_kind: '', package_type: 'outro', package_size: '', dominant_colors: [], label_text: [], shape: '', distinctive_marks: '', photo_quality: 'boa', usable_for_matching: true, ...partial }
+}
+
 const seedProducts: Product[] = [
-  { id: 'p1', name: 'Filé de frango', category: 'Proteínas', sku: 'PRO-001', unit: 'kg', quantity: 18.5, minimum_stock: 12, unit_cost: 21.9 },
-  { id: 'p2', name: 'Arroz branco', category: 'Secos', sku: 'SEC-004', unit: 'kg', quantity: 8, minimum_stock: 15, unit_cost: 6.4 },
+  { id: 'p1', name: 'Filé de frango', category: 'Proteínas', sku: 'PRO-001', unit: 'kg', quantity: 18.5, minimum_stock: 12, unit_cost: 21.9, visual_signature: signature({ brand: 'Sadia', product_kind: 'filé de peito de frango', package_type: 'saco', package_size: '1 kg', dominant_colors: ['vermelho', 'branco'], label_text: ['FILÉ DE PEITO', '1kg'], shape: 'retangular achatado', distinctive_marks: 'selo azul no canto superior' }) },
+  { id: 'p2', name: 'Arroz branco', category: 'Secos', sku: 'SEC-004', unit: 'kg', quantity: 8, minimum_stock: 15, unit_cost: 6.4, visual_signature: signature({ brand: 'Tio João', product_kind: 'arroz branco tipo 1', package_type: 'pacote', package_size: '5 kg', dominant_colors: ['azul', 'branco'], label_text: ['ARROZ TIPO 1', '5kg'], shape: 'pacote retangular alto' }) },
   { id: 'p3', name: 'Tomate italiano', category: 'Hortifruti', sku: 'HOR-012', unit: 'kg', quantity: 6.2, minimum_stock: 5, unit_cost: 8.7 },
-  { id: 'p4', name: 'Azeite extra virgem', category: 'Mercearia', sku: 'MER-023', unit: 'un', quantity: 4, minimum_stock: 6, unit_cost: 34.5 },
+  { id: 'p4', name: 'Azeite extra virgem', category: 'Mercearia', sku: 'MER-023', unit: 'un', quantity: 4, minimum_stock: 6, unit_cost: 34.5, visual_signature: signature({ brand: 'Gallo', product_kind: 'azeite de oliva extra virgem', package_type: 'garrafa', package_size: '500 ml', dominant_colors: ['verde', 'dourado'], label_text: ['EXTRA VIRGEM', '500ml'], shape: 'garrafa alta e estreita' }) },
   { id: 'p5', name: 'Queijo muçarela', category: 'Laticínios', sku: 'LAT-008', unit: 'kg', quantity: 11, minimum_stock: 8, unit_cost: 39.9 },
 ]
 

@@ -1,3 +1,17 @@
+/** Ficha visual gerada pela IA a partir da foto do produto, usada na contagem. */
+export type ProductVisualSignature = {
+  brand: string
+  product_kind: string
+  package_type: string
+  package_size: string
+  dominant_colors: string[]
+  label_text: string[]
+  shape: string
+  distinctive_marks: string
+  photo_quality: 'boa' | 'media' | 'ruim'
+  usable_for_matching: boolean
+}
+
 export type Product = {
   id: string
   user_id?: string
@@ -10,6 +24,10 @@ export type Product = {
   unit_cost: number
   expires_at?: string | null
   created_at?: string
+  photo_path?: string | null
+  visual_signature?: ProductVisualSignature | null
+  signature_model?: string | null
+  signature_updated_at?: string | null
 }
 
 export type StockMovement = {
@@ -70,6 +88,28 @@ export type InventoryScanItem = {
   unit: string
   confidence: number
   note?: string
+  /** Produto do catálogo reconhecido pela IA. Nulo = item ainda não cadastrado. */
+  product_id?: string | null
+  match_confidence?: number
+}
+
+export type InventoryScanResult = {
+  items: InventoryScanItem[]
+  scan_id: string | null
+}
+
+/** Linha do double check: o que muda no estoque se a contagem for aplicada. */
+export type ScanAdjustment = {
+  item: InventoryScanItem
+  product: Product
+  current: number
+  counted: number
+  delta: number
+}
+
+export type ScanApplyResult = {
+  applied: number
+  errors: { product: string; message: string }[]
 }
 
 export type AdminFunnelStep = {
