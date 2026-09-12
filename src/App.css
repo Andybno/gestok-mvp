@@ -403,3 +403,36 @@
 .count-target small{color:#8a958e;font-size:12px}
 .confirm-note{display:flex;align-items:center;gap:7px;padding:10px 12px;border-radius:9px;margin-bottom:14px;color:#4d6959;background:var(--green-50);font-size:13px}
 .confirm-note svg{flex:none}
+
+/* Contagem rápida em grade (toggle Lista/Grade na tela de Produtos) */
+.toolbar-end{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.segmented button{display:inline-flex;align-items:center;gap:5px}
+.quick-count-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;padding-bottom:14px}
+.quick-count-card{display:flex;flex-direction:column;gap:11px;padding:14px;background:white;border:1px solid var(--border);border-radius:12px;transition:border-color .15s,box-shadow .15s}
+.quick-count-card.changed{border-color:var(--green-500);box-shadow:0 0 0 3px rgba(57,165,111,.09)}
+.quick-count-head{display:flex;align-items:center;gap:9px;min-width:0}
+.quick-count-head>div{display:flex;flex-direction:column;min-width:0}
+.quick-count-head strong{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.quick-count-head small{color:#9aa39d;font-size:12px}
+.quick-count-controls{display:flex;align-items:center;gap:8px}
+.quick-count-controls button{width:34px;height:34px;flex:none;display:grid;place-items:center;border:1px solid var(--border);border-radius:9px;background:#fff;color:#556058}
+.quick-count-controls button:hover{background:#f2f5f3;color:var(--green-700)}
+.quick-count-controls input{flex:1;min-width:0;text-align:center;border:1px solid var(--border);border-radius:9px;padding:7px 4px;font:700 15px Manrope;color:var(--green-950);background:#fff}
+.quick-count-controls input:focus{border-color:var(--green-500);outline:0;box-shadow:0 0 0 3px rgba(57,165,111,.09)}
+.quick-count-delta{font-size:12px;font-weight:700}
+.quick-count-delta.up{color:#27855a}
+.quick-count-delta.down{color:#c45b44}
+.quick-count-bar{position:sticky;bottom:14px;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-top:14px;padding:14px 18px;background:white;border:1px solid var(--border);border-radius:13px;box-shadow:var(--shadow)}
+.quick-count-bar-copy{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:700;color:var(--green-950)}
+.quick-count-bar-error{display:flex;align-items:center;gap:6px;color:#a64238;font-weight:600;font-size:13px}
+.quick-count-bar-success{display:flex;align-items:center;gap:6px;color:var(--green-700)}
+.quick-count-actions{display:flex;gap:8px}
+
+@media (max-width: 700px){
+  .toolbar-end{width:100%;flex-direction:column;align-items:stretch}
+  .toolbar-end .segmented{justify-content:space-between}
+  .quick-count-grid{grid-template-columns:1fr 1fr}
+  .quick-count-bar{position:static;flex-direction:column;align-items:stretch}
+  .quick-count-actions{justify-content:stretch}
+  .quick-count-actions .button{flex:1}
+}
