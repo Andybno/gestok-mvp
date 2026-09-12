@@ -8,6 +8,8 @@ type Props = {
   adjustments: ScanAdjustment[]
   ignored: Ignored[]
   applying: boolean
+  /** Aviso opcional acima da lista, ex.: contagem restrita a um único produto. */
+  note?: string
   onCancel: () => void
   onConfirm: () => void
 }
@@ -15,7 +17,7 @@ type Props = {
 const number = (value: number) => value.toLocaleString('pt-BR')
 
 /** Double check obrigatório: nada é escrito no estoque antes desta confirmação. */
-export function ScanConfirmModal({ adjustments, ignored, applying, onCancel, onConfirm }: Props) {
+export function ScanConfirmModal({ adjustments, ignored, applying, note, onCancel, onConfirm }: Props) {
   return (
     <div className="modal-backdrop" role="presentation">
       <div className="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="scan-confirm-title">
@@ -25,6 +27,7 @@ export function ScanConfirmModal({ adjustments, ignored, applying, onCancel, onC
         </div>
 
         <div className="modal-form">
+          {note && <div className="confirm-note"><AlertCircle size={15} /> {note}</div>}
           {adjustments.length ? (
             <ul className="confirm-list">
               {adjustments.map((adjustment) => (

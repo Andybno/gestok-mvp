@@ -1,7 +1,7 @@
 import { demoStore } from './demoStore'
 import { demoAdminOverview, demoAdminUserDetail } from './adminDemo'
 import { isSupabaseConfigured, supabase } from './supabase'
-import type { AdminOverview, AdminUserDetail, InventoryScanItem, InventoryScanResult, LeadFormData, Product, ProductVisualSignature, ScanAdjustment, ScanApplyResult, StockMovement } from '../types'
+import type { AdminOverview, AdminUserDetail, InventoryScanItem, InventoryScanResult, LeadFormData, Product, ProductCountResult, ProductVisualSignature, ScanAdjustment, ScanApplyResult, StockMovement } from '../types'
 
 const uid = () => crypto.randomUUID()
 const FUNNEL_SESSION_KEY = 'gestok_funnel_session_id'
@@ -300,6 +300,25 @@ export async function analyzeInventoryImage(file: File): Promise<InventoryScanRe
   const { data, error } = await supabase.functions.invoke('analyze-inventory-image', { body: { path } })
   if (error) throw new Error(await functionErrorMessage(error, 'Não foi possível analisar esta imagem.'))
   return { items: data.items as InventoryScanItem[], scan_id: data.scan_id ?? null }
+}
+
+/**
+ * Conta apenas o produto informado na foto, ignorando qualquer outro item
+ * visível — usado pelo botão "Contar" na lista de produtos.
+ */
+export async function countProductByPhoto(product: Product, file: File): Promise<ProductCountResult> {
+  if (!isSupabaseConfigured || !supabase) {
+    await new Promise((resolve) => setTimeout(resolve, 1400))
+    const drift = Math.round((Math.random() - 0.5) * 6)
+    return { visible: true, estimated_quantity: Math.max(0, product.quantity + drift), unit: product.unit, confidence: 0.88, scan_id: null }
+  }
+  if (!product.visual_signature) throw new Error('Cadastre uma foto deste produto antes de contar por IA.')
+  const path = await userScopedPath(file.name)
+  const { error: uploadError } = await supabase.storage.from('inventory-scans').upload(path, file)
+  if (uploadError) throw uploadError
+  const { data, error } = await supabase.functions.invoke('analyze-inventory-image', { body: { path, focus_product_id: product.id } })
+  if (error) throw new Error(await functionErrorMessage(error, 'Não foi possível contar este produto nessa foto.'))
+  return data as ProductCountResult
 }
 
 /**

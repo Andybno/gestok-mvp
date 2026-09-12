@@ -394,3 +394,12 @@
 @media (max-width: 700px){
   .admin-users-heading .search-box{width:100%}
 }
+
+/* Contagem por foto de um único produto (botão em Produtos) */
+.row-actions button:disabled{opacity:.35;cursor:not-allowed}
+.row-actions button:not(:disabled):hover{background:#f2f5f3;color:var(--green-700)}
+.count-target{display:flex;align-items:center;gap:10px;padding:12px;margin-bottom:16px;border-radius:11px;background:#f7faf8}
+.count-target strong{display:block;font-size:14px}
+.count-target small{color:#8a958e;font-size:12px}
+.confirm-note{display:flex;align-items:center;gap:7px;padding:10px 12px;border-radius:9px;margin-bottom:14px;color:#4d6959;background:var(--green-50);font-size:13px}
+.confirm-note svg{flex:none}

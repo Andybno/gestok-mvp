@@ -112,6 +112,16 @@ export type ScanApplyResult = {
   errors: { product: string; message: string }[]
 }
 
+/** Resultado da contagem restrita a um único produto (botão em Produtos). */
+export type ProductCountResult = {
+  visible: boolean
+  estimated_quantity: number
+  unit: string
+  confidence: number
+  note?: string
+  scan_id: string | null
+}
+
 export type AdminFunnelStep = {
   key: string
   label: string
