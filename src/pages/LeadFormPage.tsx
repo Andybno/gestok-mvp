@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { ArrowLeft, ArrowRight, CalendarDays, Check, CheckCircle2, ChevronLeft, Clock3, LockKeyhole, ShieldCheck, Sparkles } from 'lucide-react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronLeft, Clock3, LockKeyhole, ShieldCheck, Sparkles, UserPlus } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Brand } from '../components/Brand'
 import { saveLead, startDiagnosticSession, trackAdLandingVisit, trackLeadAnswer } from '../lib/api'
-import { trackMetaDiagnosticLead, trackMetaDiagnosticStart, trackMetaOnboardingBooked, trackMetaScheduleStart } from '../lib/metaPixel'
+import { trackMetaDiagnosticLead, trackMetaDiagnosticStart } from '../lib/metaPixel'
 import type { LeadFormData } from '../types'
 
 type QuestionId = keyof LeadFormData
@@ -66,8 +66,6 @@ const initialData: LeadFormData = {
   estimated_loss: '', main_challenge: '', contact_consent: false, marketing_consent: false, privacy_policy_version: '2026-09-05',
 }
 
-const CAL_NAMESPACE = 'gestokDiagnostic'
-const CAL_LINK = 'gestokbr/onboarding'
 const META_SOURCES = new Set(['meta', 'facebook', 'instagram', 'fb', 'ig'])
 
 function arrivedFromAd() {
@@ -75,40 +73,6 @@ function arrivedFromAd() {
   return META_SOURCES.has(params.get('utm_source')?.toLowerCase() || '')
     || params.get('utm_medium')?.toLowerCase() === 'paid_social'
     || params.has('fbclid')
-}
-
-type CalApi = ((...args: unknown[]) => void) & { loaded?: boolean; ns: Record<string, CalApi>; q: unknown[][] }
-type CalEmbedEvent = { detail?: { data?: { startTime?: string; uid?: string } } }
-type CalWindow = Window & typeof globalThis & { Cal?: CalApi }
-
-function getCalApi() {
-  const target = window as CalWindow
-  if (target.Cal) return target.Cal
-  const cal = ((...args: unknown[]) => {
-    if (!cal.loaded) {
-      const script = document.createElement('script')
-      script.src = 'https://app.cal.com/embed/embed.js'
-      script.async = true
-      document.head.appendChild(script)
-      cal.loaded = true
-    }
-    if (args[0] === 'init') {
-      const namespace = args[1]
-      const api = ((...callArgs: unknown[]) => { api.q.push(callArgs) }) as CalApi
-      api.q = []
-      api.ns = {}
-      if (typeof namespace === 'string') {
-        cal.ns[namespace] = api
-        api.q.push(args)
-      } else cal.q.push(args)
-      return
-    }
-    cal.q.push(args)
-  }) as CalApi
-  cal.q = []
-  cal.ns = {}
-  target.Cal = cal
-  return cal
 }
 
 function formatPhone(value: string) {
@@ -122,16 +86,11 @@ function formatPhone(value: string) {
 export function LeadFormPage() {
   const [started, setStarted] = useState(arrivedFromAd)
   const [completed, setCompleted] = useState(false)
-  const [bookingStarted, setBookingStarted] = useState(false)
-  const [bookingConfirmed, setBookingConfirmed] = useState(false)
-  const [embedReady, setEmbedReady] = useState(false)
-  const [leadId, setLeadId] = useState('')
   const [index, setIndex] = useState(0)
   const [data, setData] = useState(initialData)
   const [transitioning, setTransitioning] = useState(false)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const calMounted = useRef(false)
   const question = questions[index]
   const progress = started ? ((index + 1) / questions.length) * 100 : 0
   const selectionPhase = question.type === 'choice'
@@ -146,30 +105,6 @@ export function LeadFormPage() {
       void startDiagnosticSession().catch(() => undefined)
     }
   }, [])
-
-  useEffect(() => {
-    if (!bookingStarted || bookingConfirmed || calMounted.current) return
-    calMounted.current = true
-    let active = true
-    const Cal = getCalApi()
-    if (!Cal.ns[CAL_NAMESPACE]) Cal('init', CAL_NAMESPACE, { origin: 'https://cal.com' })
-    const api = Cal.ns[CAL_NAMESPACE]
-    api('on', { action: 'bookingSuccessfulV2', callback: (event: CalEmbedEvent) => {
-      if (!active) return
-      const bookingUid = event.detail?.data?.uid
-      trackMetaOnboardingBooked(bookingUid)
-      localStorage.setItem('gestok_public_booking', JSON.stringify({ lead_id: leadId, booking_uid: bookingUid || null, start_time: event.detail?.data?.startTime || null }))
-      setBookingConfirmed(true)
-    } })
-    api('on', { action: 'linkReady', callback: () => { if (active) setEmbedReady(true) } })
-    api('ui', { hideEventTypeDetails: false, layout: 'month_view' })
-    api('inline', {
-      elementOrSelector: '#gestok-diagnostic-cal',
-      calLink: CAL_LINK,
-      config: { layout: 'month_view', theme: 'light', email: data.email, 'metadata[leadId]': leadId },
-    })
-    return () => { active = false }
-  }, [bookingConfirmed, bookingStarted, data.email, leadId])
 
   const isValid = () => {
     const value = data[question.id]
@@ -234,7 +169,7 @@ export function LeadFormPage() {
     setError('')
     try {
       const savedLeadId = await saveLead(data)
-      setLeadId(savedLeadId)
+      localStorage.setItem('gestok_signup_prefill', JSON.stringify({ email: data.email }))
       trackMetaDiagnosticLead(savedLeadId)
       setCompleted(true)
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -245,12 +180,6 @@ export function LeadFormPage() {
     }
   }
 
-  const startBooking = () => {
-    trackMetaScheduleStart(leadId)
-    setBookingStarted(true)
-    window.setTimeout(() => document.getElementById('diagnostic-booking')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
-  }
-
   if (!started) return (
     <div className="form-page conversational-form-page">
       <header className="form-header container"><Brand /><Link to="/"><ArrowLeft size={16} /><span>Voltar ao site</span></Link></header>
@@ -259,7 +188,7 @@ export function LeadFormPage() {
         <section className="diagnostic-intro-card">
           <span className="kicker"><Sparkles size={14} /> Diagnóstico gratuito</span>
           <h1>Descubra como reduzir perdas e organizar o estoque do seu restaurante</h1>
-          <p>Responda algumas perguntas sobre sua operação. No final, você poderá agendar uma demonstração personalizada da Gestokapp.</p>
+          <p>Responda algumas perguntas sobre sua operação. No final, crie sua conta e agende uma demonstração personalizada da Gestokapp.</p>
           <div className="diagnostic-intro-meta"><span><Clock3 size={17} /> Leva cerca de 2 minutos</span><span><ShieldCheck size={17} /> Seus dados são protegidos</span></div>
           <button type="button" className="button button-lg" onClick={begin}>Começar diagnóstico <ArrowRight size={18} /></button>
         </section>
@@ -273,30 +202,14 @@ export function LeadFormPage() {
       <div className="form-progress complete" aria-hidden="true"><span style={{ width: '100%' }} /></div>
       <main className="diagnostic-success-layout container">
         <section className="diagnostic-success-card">
-          {bookingConfirmed ? <>
-            <span className="diagnostic-success-icon"><CheckCircle2 /></span>
-            <span className="kicker">Demonstração agendada</span>
-            <h1>Seu horário está reservado.</h1>
-            <p>Você receberá a confirmação e os dados da reunião pelo Cal.com. Nossa equipe conhecerá sua operação e apresentará a Gestokapp de forma personalizada.</p>
-            <strong className="access-release-note">O acesso à ferramenta será liberado após a realização da demonstração.</strong>
-          </> : <>
-            <span className="diagnostic-success-icon"><CheckCircle2 /></span>
-            <span className="kicker">Diagnóstico enviado</span>
-            <h1>Seu diagnóstico foi concluído</h1>
-            <p>Agora agende uma demonstração para vermos como a Gestokapp pode se adaptar à rotina do seu restaurante.</p>
-            <p>Durante a reunião, vamos entender sua operação, apresentar a ferramenta e explicar os próximos passos para liberar seu acesso.</p>
-            <strong className="access-release-note">O acesso à ferramenta será liberado após a realização da demonstração.</strong>
-            {!bookingStarted && <button type="button" className="button button-lg diagnostic-booking-cta" onClick={startBooking}><CalendarDays size={18} /> Agendar minha demonstração</button>}
-          </>}
+          <span className="diagnostic-success-icon"><CheckCircle2 /></span>
+          <span className="kicker">Diagnóstico enviado</span>
+          <h1>Seu diagnóstico foi concluído</h1>
+          <p>Agora crie sua conta para identificar sua operação e continuar para o agendamento da demonstração.</p>
+          <p>Depois do cadastro, você escolherá um horário para nossa equipe conhecer sua rotina, apresentar a Gestokapp e explicar os próximos passos.</p>
+          <strong className="access-release-note">A conta é necessária para agendar. O acesso à ferramenta será liberado após a realização da demonstração.</strong>
+          <Link to="/cadastro" className="button button-lg diagnostic-booking-cta"><UserPlus size={18} /> Criar conta e continuar</Link>
         </section>
-        {bookingStarted && !bookingConfirmed && <section id="diagnostic-booking" className="diagnostic-booking-card">
-          <div className="onboarding-card-heading"><span className="auth-icon"><CalendarDays size={21} /></span><div><h2>Escolha seu horário</h2><p>A reserva acontece aqui, com confirmação automática pelo Google Agenda.</p></div></div>
-          <div className="cal-embed-shell">
-            {!embedReady && <div className="cal-embed-loading"><span /><p>Carregando horários disponíveis...</p></div>}
-            <div id="gestok-diagnostic-cal" className={embedReady ? 'ready' : ''} />
-          </div>
-          <p className="cal-privacy-note">Ao reservar, seus dados de contato e o horário escolhido serão enviados ao Cal.com e ao Google Agenda para organizar a reunião.</p>
-        </section>}
       </main>
     </div>
   )

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { Brand } from '../components/Brand'
 import { useAuth } from '../context/AuthContext'
 import { scheduleOnboarding } from '../lib/api'
-import { trackMetaOnboardingBooked } from '../lib/metaPixel'
+import { trackMetaOnboardingBooked, trackMetaScheduleStart } from '../lib/metaPixel'
 
 const CAL_NAMESPACE = 'gestokOnboarding'
 const CAL_LINK = 'gestokbr/onboarding'
@@ -76,6 +76,7 @@ export function OnboardingPage() {
 
   useEffect(() => {
     if (!user || !profile || profile.onboarding_status !== 'pending_booking') return
+    trackMetaScheduleStart(localStorage.getItem('gestok_lead_id') || profile.id)
     const target = window as CalWindow
     let active = true
     const Cal = getCalApi()

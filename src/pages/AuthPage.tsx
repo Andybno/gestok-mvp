@@ -37,6 +37,7 @@ export function AuthPage({ mode, adminMode = false }: { mode: 'signup' | 'signin
       if (mode === 'signup') {
         if (password.length < 8) throw new Error('A senha deve ter pelo menos 8 caracteres.')
         await signUp({ email, password, fullName, businessName })
+        localStorage.removeItem('gestok_signup_prefill')
         trackMetaDiagnosticLead()
         navigate('/onboarding')
       } else {
