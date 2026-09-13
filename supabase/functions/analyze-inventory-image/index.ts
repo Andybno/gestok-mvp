@@ -1,11 +1,73 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders, json, safeError } from '../_shared/http.ts'
-import { requireAppAccess } from '../_shared/access.ts'
-import { askVision, imageDataUrl } from '../_shared/openai.ts'
 import { adminClient, requireUser } from '../_shared/supabase.ts'
 
 type PromptKey = 'product_photo_quality' | 'product_profile' | 'count_photo_quality' | 'inventory_count'
 type GuidedAction = 'product_setup' | 'inventory_count'
+
+function arrayBufferToBase64(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(index, Math.min(index + 0x8000, bytes.length)))
+  }
+  return btoa(binary)
+}
+
+async function imageDataUrl(blob: Blob) {
+  return `data:${blob.type || 'image/jpeg'};base64,${arrayBufferToBase64(await blob.arrayBuffer())}`
+}
+
+async function hashIdentifier(value: string) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('').slice(0, 64)
+}
+
+type VisionInput = {
+  userId: string
+  instructions: string
+  content: unknown[]
+  schemaName: string
+  schema: Record<string, unknown>
+}
+
+async function askVision({ userId, instructions, content, schemaName, schema }: VisionInput) {
+  const apiKey = Deno.env.get('OPENAI_API_KEY')
+  if (!apiKey) throw new Error('OPENAI_API_KEY não configurada.')
+  const model = 'gpt-5.6-luna'
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      store: false,
+      safety_identifier: await hashIdentifier(userId),
+      instructions,
+      input: [{ role: 'user', content }],
+      text: { format: { type: 'json_schema', name: schemaName, strict: true, schema } },
+    }),
+  })
+  const result = await response.json()
+  if (!response.ok) throw new Error(result?.error?.message || 'A análise da imagem falhou.')
+  const outputText = result.output
+    ?.flatMap((item: { content?: Array<{ type?: string; text?: string }> }) => item.content || [])
+    .filter((item: { type?: string; text?: string }) => item.type === 'output_text')
+    .map((item: { text?: string }) => item.text || '')
+    .join('')
+  if (!outputText) throw new Error('A IA não retornou um resultado utilizável.')
+  return { parsed: JSON.parse(outputText) as Record<string, unknown>, model }
+}
+
+async function requireAppAccess(admin: SupabaseClient, userId: string, message: string) {
+  const { data: profile } = await admin.from('profiles')
+    .select('is_admin,onboarding_status,subscription_status,trial_ends_at')
+    .eq('id', userId).single()
+  const hasAccess = Boolean(profile?.is_admin)
+    || (profile?.onboarding_status === 'completed'
+      && (profile?.subscription_status === 'active'
+        || (profile?.subscription_status === 'trialing' && new Date(profile.trial_ends_at).getTime() > Date.now())))
+  if (!hasAccess) throw new Error(message)
+}
 
 /** Teto de produtos enviados no prompt, para manter custo e latência previsíveis. */
 const CATALOG_LIMIT = 120
